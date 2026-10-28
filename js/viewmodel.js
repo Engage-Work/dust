@@ -435,6 +435,7 @@ class ViewModel {
     this.handR.quaternion.setFromEuler(m.group.rotation);
     if (type === 'knife') { this.handR.rotateX(-Math.PI / 2); this.handR.rotateY(0.1); }
     else if (type === 'grenade') this.handR.rotateX(-0.2);
+    else if (type === 'pistol') this.handR.rotateX(-0.22);   // the fist follows the grip's rake
     const er = pose.er || ViewModel.POSE.rifle.er;
     const elbowR = _vmB.set(pos.x + er[0], pos.y + er[1], pos.z + er[2]);
     this.placeArm(this.armR, elbowR, _vmT2.copy(grip).add(_vmT3.set(0.01, -0.02, 0.05).applyQuaternion(this.handR.quaternion)));

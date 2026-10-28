@@ -110,7 +110,7 @@ const Models = (() => {
   function grip(parent, mat, x, y, z, rx = 0.28, w = 0.032, h = 0.1, d = 0.046, r = 0.009) {
     const M = mats();
     const body = mat === M.wood || mat === M.woodDark ? mat : mat === M.polyTan ? M.gripTan : M.grip;
-    const g = part(parent, rbox(w, h, d, r), body, x, y, z, rx);
+    const g = part(parent, rbox(w, h, d, r), body, x, y, z, -Math.abs(rx));
     part(g, rbox(w * 1.02, h * 0.5, d * 0.25, 0.003), mat === M.wood || mat === M.woodDark ? M.dark : mat, 0, h * 0.05, -d * 0.4);   // smooth front strap
     return g;
   }
@@ -306,8 +306,8 @@ const Models = (() => {
         part(g, rbox(0.028, 0.026, 0.2, 0.004), M.gun, 0, 0.022, -0.13);                                // frame
         part(g, rbox(0.026, 0.02, 0.07, 0.004), M.gun, 0, 0.0, -0.04);
         trigger(g, M.gun, -0.03, -0.06, 0.9);
-        grip(g, M.poly, 0, -0.055, 0.03, 0.22, 0.034, 0.12, 0.056, 0.01);
-        part(g, rbox(0.008, 0.02, 0.03, 0.002), M.gun2, -0.02, 0.01, 0.03);                             // safety
+        grip(g, M.poly, 0, -0.04, -0.025, 0.24, 0.034, 0.125, 0.056, 0.01);
+        part(g, rbox(0.008, 0.02, 0.03, 0.002), M.gun2, -0.02, 0.01, -0.01);                            // safety
         part(g, rbox(0.03, 0.01, 0.02, 0.002), M.gun2, 0, 0.0, 0.07, 0.4);                              // hammer
         r.muzzle.position.set(0, 0.055, -0.235);
       } else if (id === 'usp') {
@@ -318,8 +318,8 @@ const Models = (() => {
         rail(g, M.poly, 0, 0.012, -0.08, 0.06, 0.02);
         part(g, cylZ(0.016, 0.016, 0.17, 16), M.gun2, 0, 0.05, -0.25);                                  // suppressor
         for (let i = 0; i < 3; i++) part(g, cylZ(0.0165, 0.0165, 0.004, 16), M.dark, 0, 0.05, -0.2 - i * 0.04);
-        grip(g, M.poly, 0, -0.045, 0.02, 0.22, 0.03, 0.105, 0.05, 0.009);
-        trigger(g, M.poly, -0.028, -0.05, 0.85);
+        grip(g, M.poly, 0, -0.035, -0.012, 0.24, 0.03, 0.115, 0.05, 0.009);
+        trigger(g, M.poly, -0.028, -0.06, 0.85);
         r.muzzle.position.set(0, 0.05, -0.34);
       } else if (id === 'glock') {
         part(slide, rbox(0.026, 0.032, 0.185, 0.004), M.dark, 0, 0.05, -0.07);
@@ -327,16 +327,16 @@ const Models = (() => {
         part(slide, rbox(0.004, 0.01, 0.005, 0.001), M.gun2, 0, 0.07, -0.15); part(slide, rbox(0.018, 0.01, 0.008, 0.002), M.gun2, 0, 0.07, 0.02);
         part(g, rbox(0.025, 0.02, 0.16, 0.004), M.poly, 0, 0.025, -0.07);
         rail(g, M.poly, 0, 0.012, -0.08, 0.05, 0.02);
-        grip(g, M.poly, 0, -0.045, 0.02, 0.25, 0.03, 0.105, 0.05, 0.009);
-        trigger(g, M.poly, -0.028, -0.05, 0.85);
+        grip(g, M.poly, 0, -0.035, -0.012, 0.26, 0.03, 0.115, 0.05, 0.009);
+        trigger(g, M.poly, -0.028, -0.06, 0.85);
         r.muzzle.position.set(0, 0.05, -0.17);
       } else if (id === 'p250') {
         part(slide, rbox(0.027, 0.032, 0.17, 0.004), M.gun2, 0, 0.05, -0.065);
         serr(6, -0.01, M.dark);
         part(slide, rbox(0.004, 0.01, 0.005, 0.001), M.gun, 0, 0.07, -0.14); part(slide, rbox(0.018, 0.01, 0.008, 0.002), M.gun, 0, 0.07, 0.02);
         part(g, rbox(0.026, 0.022, 0.15, 0.004), M.poly, 0, 0.025, -0.065);
-        grip(g, M.poly, 0, -0.045, 0.02, 0.24, 0.03, 0.105, 0.05, 0.009);
-        trigger(g, M.gun, -0.028, -0.045, 0.85);
+        grip(g, M.poly, 0, -0.035, -0.012, 0.24, 0.03, 0.115, 0.05, 0.009);
+        trigger(g, M.gun, -0.028, -0.055, 0.85);
         r.muzzle.position.set(0, 0.05, -0.155);
       } else if (id === 'fiveseven') {
         part(slide, rbox(0.027, 0.03, 0.19, 0.005), M.poly, 0, 0.05, -0.075);
@@ -344,8 +344,8 @@ const Models = (() => {
         part(slide, rbox(0.004, 0.01, 0.005, 0.001), M.gun, 0, 0.069, -0.16); part(slide, rbox(0.018, 0.01, 0.008, 0.002), M.gun, 0, 0.069, 0.02);
         part(g, rbox(0.026, 0.022, 0.17, 0.004), M.poly, 0, 0.025, -0.07);
         rail(g, M.poly, 0, 0.012, -0.08, 0.06, 0.02);
-        grip(g, M.poly, 0, -0.05, 0.02, 0.2, 0.03, 0.115, 0.052, 0.009);
-        trigger(g, M.gun, -0.028, -0.05, 0.85);
+        grip(g, M.poly, 0, -0.04, -0.008, 0.22, 0.03, 0.125, 0.052, 0.009);
+        trigger(g, M.gun, -0.028, -0.06, 0.85);
         r.muzzle.position.set(0, 0.05, -0.175);
       } else if (id === 'tec9') {
         part(slide, rbox(0.028, 0.034, 0.2, 0.004), M.gun, 0, 0.05, -0.08);
@@ -353,18 +353,21 @@ const Models = (() => {
         part(slide, rbox(0.004, 0.012, 0.005, 0.001), M.gun2, 0, 0.072, -0.17); part(slide, rbox(0.02, 0.012, 0.008, 0.002), M.gun2, 0, 0.072, 0.0);
         part(g, cylZ(0.009, 0.009, 0.08), M.gun, 0, 0.05, -0.22);                                      // exposed barrel
         part(g, rbox(0.026, 0.02, 0.16, 0.004), M.poly, 0, 0.025, -0.07);
-        grip(g, M.poly, 0, -0.06, 0.0, 0.1, 0.034, 0.14, 0.05, 0.009);                                  // long mag-in-grip
-        trigger(g, M.gun, -0.03, -0.06, 0.9);
+        grip(g, M.poly, 0, -0.05, -0.012, 0.12, 0.034, 0.15, 0.05, 0.009);                              // long mag-in-grip
+        trigger(g, M.gun, -0.03, -0.065, 0.9);
         r.muzzle.position.set(0, 0.05, -0.26);
       }
       r.slide = slide;
-      const magZ = id === 'tec9' ? 0.01 : 0.035, magLen = id === 'tec9' ? 0.05 : id === 'deagle' ? 0.03 : 0.045;
-      const mag = node(g, 0, id === 'tec9' ? -0.13 : -0.1, magZ);
-      part(mag, rbox(0.026, 0.02, magLen, 0.004), M.gun2, 0, 0, 0, id === 'tec9' ? 0.1 : 0.22);
-      part(mag, rbox(0.03, 0.006, magLen + 0.008, 0.002), M.dark, 0, -0.012, 0, id === 'tec9' ? 0.1 : 0.22);   // baseplate
+      // The mag sits in the bottom of the grip, raked with it; only its baseplate shows
+      const gripZ = id === 'deagle' ? -0.025 : id === 'fiveseven' ? -0.008 : -0.012, rake = id === 'tec9' ? -0.12 : -0.24;
+      const magLen = id === 'tec9' ? 0.05 : id === 'deagle' ? 0.03 : 0.045, magY = id === 'tec9' ? -0.125 : -0.095;
+      const magZ = gripZ + Math.sin(-rake) * (-magY) * 0.9;
+      const mag = node(g, 0, magY, magZ);
+      part(mag, rbox(0.026, 0.02, magLen, 0.004), M.gun2, 0, 0, 0, rake);
+      part(mag, rbox(0.03, 0.006, magLen + 0.008, 0.002), M.dark, 0, -0.012, 0, rake);   // baseplate
       r.mag = mag;
       r.eject.position.set(0.02, 0.065, -0.05);
-      r.grip.set(0, -0.05, 0.03); r.guard.set(-0.012, -0.065, 0.03); r.magWell = new THREE.Vector3(0, id === 'tec9' ? -0.13 : -0.1, magZ);
+      r.grip.set(0, -0.05, gripZ + 0.012); r.guard.set(-0.012, -0.07, gripZ + 0.012); r.magWell = new THREE.Vector3(0, magY, magZ);
     } else if (id === 'mp9') {
       part(g, rbox(0.04, 0.06, 0.24, 0.008), M.poly, 0, 0.03, -0.08);
       rail(g, M.dark, 0, 0.066, 0.0, 0.22, 0.022);
