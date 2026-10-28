@@ -376,7 +376,7 @@ class Game {
 
   kill(v, att, def, hs, dir, wall, group) {
     v.alive = false; v.hp = 0; v.deaths++;
-    v.sliding = false; v.planting = false; v.defusing = false; v.scoped = 0; v.reloading = false;
+    v.sliding = false; v.planting = false; v.defusing = false; v.scoped = 0; v.rezoom = 0; v.reloading = false;
     const md = this.mode;
     if (att && att !== v) {
       if (att.team !== v.team) {

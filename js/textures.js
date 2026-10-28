@@ -313,6 +313,19 @@ const Tex = (() => {
       }
     }, 1.0);
   }
+  // Pistol / rifle grip: diamond checkering with a worn, slightly glossy top on each diamond
+  function gripTex() {
+    return generate(256, (u, v, x, y, o) => {
+      const n = 20;
+      const du = Math.abs(((u * n) % 1) - 0.5), dv = Math.abs(((v * n) % 1) - 0.5);
+      const d = du + dv;                       // diamond distance from the cell centre
+      const peak = clamp(1 - d * 2.2, 0, 1);   // pyramid height
+      const wear = fbm(u, v, 3, 3, 71), fine = vnoise(u * 200, v * 200, 200, 73);
+      const k = 0.78 + 0.35 * peak + 0.08 * fine + 0.1 * wear;
+      o.r = o.g = o.b = k;
+      o.h = peak * 0.9; o.ro = 0.55 + 0.3 * (1 - peak) + 0.1 * wear;
+    }, 2.6);
+  }
   // Character camo fabric (small size)
   function camo(kind) {
     return generate(256, (u, v, x, y, o) => {
@@ -511,7 +524,7 @@ const Tex = (() => {
       progress && progress((keys.length + 1) / (keys.length + 4), 'Generating fabrics');
       await new Promise((r) => setTimeout(r, 0));
       this.camo.ct = camo('ct'); this.camo.t = camo('t'); this.camo.dark = camo('dark');
-      this.gun = { metal: gunTex('metal'), poly: gunTex('poly') };
+      this.gun = { metal: gunTex('metal'), poly: gunTex('poly'), grip: gripTex() };
       progress && progress((keys.length + 2) / (keys.length + 4), 'Generating effect textures');
       await new Promise((r) => setTimeout(r, 0));
       this.sprites = sprites();

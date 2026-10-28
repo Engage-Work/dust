@@ -254,18 +254,28 @@ const HUD = (() => {
       show('bombIcon', planted);
       if (planted) E.bombIcon.style.setProperty('--k', clamp(md.bomb.timer / 40, 0, 1));
       if (md.history && cache.hist !== md.history.length) { cache.hist = md.history.length; api.drawHistory(md); }
-      // Crosshair
+      // Crosshair: the gap opens with the real spread (movement, air, landing, firing), and the whole crosshair
+      // rides the part of the recoil the camera doesn't show, so it marks where the next bullet goes
       const S = Settings.data;
       let extra = 0;
+      const pxPerRad = innerHeight * 0.5 / Math.tan(g.camera.fov * 0.5 * DEG);
       if (S.crossStyle === 'dynamic' && a.alive) {
         const inacc = a.inaccuracy() / 1000;
-        const px = Math.tan(inacc) / Math.tan(g.camera.fov * 0.5 * DEG) * innerHeight * 0.5;
-        extra = Math.min(60, px * 0.6);
+        extra = Math.min(70, Math.tan(inacc) * pxPerRad * 0.6);
       }
+      if (S.crossRecoil && a === P && P.alive && !P.scoped) {
+        // Camera carries 45% of the pattern recoil, the view punch and 70% of the aim punch; the bullet gets all of it
+        const dp = (P.recoilP * 0.55 + P.aimPunchP * 0.3 - P.punchP) * DEG;
+        const dy = (-P.recoilY * 0.55 + P.punchY + P.aimPunchY * 0.3) * DEG;
+        const ox = -Math.tan(dy) * pxPerRad, oy = -Math.tan(dp) * pxPerRad;
+        const key = Math.round(ox) + ',' + Math.round(oy);
+        if (cache.xhOff !== key) { cache.xhOff = key; E.crosshair.style.transform = `translate(-50%, -50%) translate(${ox.toFixed(1)}px, ${oy.toFixed(1)}px)`; }
+      } else if (cache.xhOff !== '0,0') { cache.xhOff = '0,0'; E.crosshair.style.transform = 'translate(-50%, -50%)'; }
       const lightScope = def && def.scope && def.zoom && def.zoom.length === 1;
       const hideX = !a.alive || (def && def.scope && !a.scoped) || (def && def.scope && a.scoped && !lightScope) || g.spectating;
       api.drawCrosshair(extra, hideX);
-      show('scope', !!(a.alive && a.scoped && def && def.scope));
+      // The scope is yours alone: never over the death camera or a spectated teammate
+      show('scope', !!(a === P && P.alive && P.scoped && def && def.scope));
       E.scope.classList.toggle('light', !!lightScope);
       // Progress bar (plant / defuse)
       let prog = null;

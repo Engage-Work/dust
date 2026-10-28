@@ -12,12 +12,16 @@ const Models = (() => {
     const GM = Tex.gun.metal, GP = Tex.gun.poly;
     const metal = { map: GM.map, roughnessMap: GM.roughnessMap, normalMap: GM.normalMap, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 1 };
     const polyT = { map: GP.map, roughnessMap: GP.roughnessMap, normalMap: GP.normalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughness: 1 };
+    const GG = Tex.gun.grip;
+    const gripT = { map: GG.map, roughnessMap: GG.roughnessMap, normalMap: GG.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 1 };
     MAT = {
       gun: S(Object.assign({ color: 0x2c2d30, metalness: 0.62, envMapIntensity: 0.45 }, metal)),
       gun2: S(Object.assign({ color: 0x38393c, metalness: 0.6, envMapIntensity: 0.45 }, metal)),
       dark: S(Object.assign({ color: 0x232426, metalness: 0.4, envMapIntensity: 0.45 }, metal)),
       poly: S(Object.assign({ color: 0x1c1d1e, metalness: 0.05, envMapIntensity: 0.6 }, polyT)),
       polyTan: S(Object.assign({ color: 0x6e6049, metalness: 0.05, envMapIntensity: 0.6 }, polyT)),
+      grip: S(Object.assign({ color: 0x3b3c3f, metalness: 0.05, envMapIntensity: 0.7 }, gripT)),
+      gripTan: S(Object.assign({ color: 0x7a6a50, metalness: 0.05, envMapIntensity: 0.7 }, gripT)),
       wood: S({ map: woodTex, color: 0xe08a4a, roughness: 0.42, metalness: 0 }),
       woodDark: S({ map: woodTex, color: 0x8a5a32, roughness: 0.5, metalness: 0 }),
       mag: S(Object.assign({ color: 0x2e2b28, metalness: 0.5, envMapIntensity: 0.45 }, metal)),
@@ -102,9 +106,12 @@ const Models = (() => {
     part(parent, rbox(0.006 * scale, 0.02 * scale, 0.006 * scale, 0.002), mat, 0, y + 0.012 * scale, z - 0.035 * scale); // guard front
     part(parent, rbox(0.005 * scale, 0.022 * scale, 0.007 * scale, 0.002), mat, 0, y + 0.014 * scale, z + 0.01 * scale, 0.25); // trigger
   }
+  // Polymer grips get the checkered texture (wood keeps its grain); a smooth panel sits on the front strap
   function grip(parent, mat, x, y, z, rx = 0.28, w = 0.032, h = 0.1, d = 0.046, r = 0.009) {
-    const g = part(parent, rbox(w, h, d, r), mat, x, y, z, rx);
-    part(g, rbox(w * 0.7, h * 0.55, d * 0.4, 0.004), mats().dark, 0, -h * 0.05, d * 0.3);    // texture inset on the back strap
+    const M = mats();
+    const body = mat === M.wood || mat === M.woodDark ? mat : mat === M.polyTan ? M.gripTan : M.grip;
+    const g = part(parent, rbox(w, h, d, r), body, x, y, z, rx);
+    part(g, rbox(w * 1.02, h * 0.5, d * 0.25, 0.003), mat === M.wood || mat === M.woodDark ? M.dark : mat, 0, h * 0.05, -d * 0.4);   // smooth front strap
     return g;
   }
   function ironSights(parent, mat, yTop, zRear, zFront, h = 0.022) {

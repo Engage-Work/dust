@@ -70,10 +70,10 @@ const OLD_SETTINGS_KEYS = ['dustline_settings_v1', 'sandstorm_fps_settings_v1'];
 // people play with their system's pointer acceleration on: 5 turns about 0.11° per pixel, a full turn
 // in roughly two sweeps of a trackpad. Raw input (no acceleration) stays available for those who want it.
 const DEFAULT_SETTINGS = {
-  version: 3,
+  version: 4,
   sens: 5, zoomSens: 1.0, rawInput: false, invertY: false,
   moveMode: 'walk', slide: true, toggleCrouch: false, kbLock: true, knife: 'butterfly',
-  crossStyle: 'static', crossSize: 5, crossGap: 3, crossThick: 2, crossColor: '#3dff7f', crossDot: false, crossOutline: true, crossT: false,
+  crossStyle: 'dynamic', crossRecoil: true, crossSize: 5, crossGap: 3, crossThick: 2, crossColor: '#3dff7f', crossDot: false, crossOutline: true, crossT: false,
   hitmarker: true, damageNumbers: true, killBanner: true,
   vmFov: 68, vmX: 1, vmY: 1, vmZ: -1, vmBob: true,
   volume: 0.7, uiVolume: 0.8,
@@ -94,7 +94,9 @@ const Settings = {
         this.data.rawInput = DEFAULT_SETTINGS.rawInput;
         this.data.version = DEFAULT_SETTINGS.version;
       }
-      // 早期版本的取值已废弃，未知值回落到默认
+      // Version 4 made the crosshair dynamic and recoil-following; saved settings get the new behaviour once
+      if (!(this.data.version >= 4)) { this.data.crossStyle = 'dynamic'; this.data.crossRecoil = true; this.data.version = 4; }
+      // Early versions used values that no longer exist; unknown ones fall back to the default
       if (this.data.moveMode !== 'walk' && this.data.moveMode !== 'sprint') this.data.moveMode = DEFAULT_SETTINGS.moveMode;
     } catch (e) { /* 隐私模式等 */ }
   },

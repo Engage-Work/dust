@@ -492,7 +492,8 @@ const Engine = {
       { k: 'knife', l: 'Melee weapon', t: 'select', o: [['butterfly', 'Butterfly knife'], ['knife', 'Default knife']], d: 'Takes effect on next spawn; press F to inspect' },
     ],
     cross: [
-      { k: 'crossStyle', l: 'Crosshair style', t: 'select', o: [['static', 'Static (pro favorite)'], ['dynamic', 'Dynamic (expands with spread)']] },
+      { k: 'crossStyle', l: 'Crosshair style', t: 'select', o: [['dynamic', 'Dynamic (spreads with movement and fire)'], ['static', 'Static']] },
+      { k: 'crossRecoil', l: 'Follow recoil', t: 'bool', d: 'The crosshair moves with the spray so you see where the bullets go, and settles as the recoil recovers' },
       { k: 'crossSize', l: 'Length', t: 'range', min: 0, max: 20, step: 0.5 },
       { k: 'crossGap', l: 'Gap', t: 'range', min: -2, max: 20, step: 0.5 },
       { k: 'crossThick', l: 'Thickness', t: 'range', min: 1, max: 6, step: 0.5 },
