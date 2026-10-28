@@ -184,7 +184,7 @@ class Game {
     }
     return best;
   }
-  fireBullet(sh, o, d, def) {
+  fireBullet(sh, o, d, def, quiet) {
     let dmg = def.damage, traveled = 0, pens = 0, wall = false;
     let ox = o.x, oy = o.y, oz = o.z;
     const maxRange = 220, exclude = new Set([sh]);
@@ -245,8 +245,8 @@ class Game {
       ox = px + d.x * 0.01; oy = py + d.y * 0.01; oz = pz + d.z * 0.01;
     }
     if (!tracerEnd) tracerEnd = new THREE.Vector3(o.x + d.x * 100, o.y + d.y * 100, o.z + d.z * 100);
-    // Tracer
-    if (def.tracer) {
+    // Tracer (one per trigger pull, so a shotgun's extra pellets stay quiet)
+    if (def.tracer && !quiet) {
       let start;
       if (sh.isPlayer) start = this.vm.muzzleWorld(_g4).add(this.camera.position).clone();
       else start = sh.model.weapon ? sh.model.weapon.muzzle.getWorldPosition(new THREE.Vector3()) : o.clone();
@@ -254,7 +254,7 @@ class Game {
     }
     // Near-miss whiz
     const P = this.player;
-    if (sh !== P && P.alive && !hitSomeone) {
+    if (sh !== P && P.alive && !hitSomeone && !quiet) {
       const eye = P.eyePos(_g4);
       const L = o.distanceTo(tracerEnd);
       const t = clamp((eye.x - o.x) * d.x + (eye.y - o.y) * d.y + (eye.z - o.z) * d.z, 0, L);
@@ -271,9 +271,11 @@ class Game {
       const m = this.vm.muzzleWorld(_g1).add(cam.position);
       if (!def.suppressed) Effects.light(m, 2.4, 0.06);
       const r = _g2.set(1, 0, 0).applyQuaternion(cam.quaternion), u = _g3.set(0, 1, 0).applyQuaternion(cam.quaternion), f = _g4.set(0, 0, -1).applyQuaternion(cam.quaternion);
-      const ej = cam.position.clone().addScaledVector(r, 0.1).addScaledVector(u, -0.09).addScaledVector(f, 0.32);
-      const vel = new THREE.Vector3().addScaledVector(r, rand(1.6, 2.6)).addScaledVector(u, rand(1.0, 2.0)).addScaledVector(f, rand(-0.4, 0.2)).add(a.vel);
-      Effects.shell(ej, vel, def.type === 'sniper');
+      if (def.type !== 'sniper' && def.type !== 'shotgun') {
+        const ej = cam.position.clone().addScaledVector(r, 0.1).addScaledVector(u, -0.09).addScaledVector(f, 0.32);
+        const vel = new THREE.Vector3().addScaledVector(r, rand(1.6, 2.6)).addScaledVector(u, rand(1.0, 2.0)).addScaledVector(f, rand(-0.4, 0.2)).add(a.vel);
+        Effects.shell(ej, vel, false);
+      }
     } else {
       const m = a.model.weapon ? a.model.weapon.muzzle.getWorldPosition(_g1) : a.eyePos(_g1);
       this.playAt('shot_' + def.sound, m, { vol: def.vol * 1.3, ref: def.suppressed ? 2.5 : 6, roll: 0.9, rev: 0.4, net: false });
@@ -283,9 +285,10 @@ class Game {
       }
       if (m.distanceTo(cam.position) < 18) {
         const f = a.forward(_g2), r = _g3.set(Math.cos(a.yaw), 0, -Math.sin(a.yaw));
-        Effects.shell(m.clone().addScaledVector(f, -0.45), new THREE.Vector3().addScaledVector(r, rand(1.5, 2.5)).add(_g4.set(0, rand(1, 2), 0)).add(a.vel), def.type === 'sniper');
+        Effects.shell(m.clone().addScaledVector(f, -0.45), new THREE.Vector3().addScaledVector(r, rand(1.5, 2.5)).add(_g4.set(0, rand(1, 2), 0)).add(a.vel), def.type === 'sniper', def.type === 'shotgun');
       }
       if (def.type === 'sniper') this.playAt('awpbolt', a.pos, { vol: 0.5, ref: 2, delay: 0.35, maxDist: 25, net: false });
+      if (def.type === 'shotgun') this.playAt('pump', a.pos, { vol: 0.5, ref: 2, delay: 0.3, maxDist: 25, net: false });
     }
     this.noise(a, a.pos, def.suppressed ? 12 : 75);
   }
@@ -336,8 +339,16 @@ class Game {
       v.armor = Math.max(0, v.armor - toA); d = toH;
     }
     d = Math.max(1, Math.floor(d));
+    const dealt = Math.min(d, Math.max(0, v.hp));
     v.hp -= d;
-    if (att && att !== v) { v.damageBy.set(att, (v.damageBy.get(att) || 0) + d); v.lastAttacker = att; }
+    if (att && att !== v) {
+      v.damageBy.set(att, (v.damageBy.get(att) || 0) + d); v.lastAttacker = att;
+      if (att.team !== v.team) {
+        const e = att.dmgOut.get(v) || { dmg: 0, hits: 0 }; e.dmg += dealt; e.hits++; att.dmgOut.set(v, e); att.totalDmg += dealt;
+        if (att.isPlayer && point && Settings.data.damageNumbers) HUD.damageNumber(point, dealt, group === 'head', armored);
+      }
+    }
+    if (v.model && !v.isPlayer && !v.model.ragdoll) v.model.flinch(group, dir);
     v.lastHitTime = this.time;
     if (def && def.type !== 'knife' && group !== 'fall') v.velMod = Math.min(v.velMod, group === 'leg' ? 0.62 : 0.5);
     if (v.isPlayer || v.remote) {
@@ -356,8 +367,8 @@ class Game {
     }
     if (att && att.isPlayer && att !== v && v.team !== att.team) {
       if (group === 'head') Sound.play(armored ? 'hs_helmet' : 'hs_flesh', { vol: 0.75 });
-      else Sound.play('hit_body', { vol: 0.5 });
-      HUD.hitmarker(v.hp <= 0);
+      else Sound.play(armored ? 'hit_armor' : 'hit_body', { vol: 0.5 });
+      HUD.hitmarker(v.hp <= 0, group === 'head');
     }
     if (v.brain) v.brain.onDamaged(att);
     if (v.hp <= 0) this.kill(v, att, def, group === 'head', dir, wall, group, melee);
@@ -369,13 +380,13 @@ class Game {
     const md = this.mode;
     if (att && att !== v) {
       if (att.team !== v.team) {
-        att.kills++; att.roundKills++;
+        att.kills++; att.roundKills++; if (hs) att.hsKills++;
         if (!md.infiniteMoney) { const rw = (def && def.killReward) || 300; att.money = Math.min(16000, att.money + rw); if (att.isPlayer) HUD.moneyFlash(); }
       } else att.kills--;
     }
     for (const [o, dd] of v.damageBy) if (o !== att && dd >= 41 && o.team !== v.team) o.assists++;
-    HUD.killfeed({ killer: att && att !== v ? att : null, victim: v, weapon: def ? def.name : 'Fall', hs, wallbang: wall, mine: (att && att.isPlayer) || v.isPlayer });
-    if (att && att.isPlayer && att !== v) Sound.play('kill', { vol: 0.35 });
+    HUD.killfeed({ killer: att && att !== v ? att : null, victim: v, weapon: def ? def.name : 'Fall', weaponId: def ? def.id : 'fall', hs, wallbang: wall, mine: (att && att.isPlayer) || v.isPlayer });
+    if (att && att.isPlayer && att !== v) { Sound.play('kill', { vol: 0.35 }); if (att.team !== v.team) HUD.killBanner(v, hs, att.roundKills); }
     // Broadcast first: guests must spawn the ragdoll with the same pose before the weapon drops
     if (this.net) this.emit({ t: 'kill', v: v.id, k: att ? att.id : 0, w: def ? def.name : 'Fall', hs: hs ? 1 : 0, wb: wall ? 1 : 0, dir: dir ? nv(dir) : null, g: group });
     // Drop
@@ -406,8 +417,11 @@ class Game {
     this.deathT = 0; this.killer = killer;
     // Death cam: pull from own eye position to behind/above the corpse, mouse orbits freely (no longer auto-locks onto the killer)
     this.deathYaw = v.yaw; this.deathPitch = -0.42; this.deathEye = v.eyePos(new THREE.Vector3()); this.deathQuat = this.camera.quaternion.clone();
-    const kd = killer ? `Killed by <span class="c${killer.team}">${killer.name}</span> with ${wname}${hs ? ' (headshot)' : ''}${wall ? ' (through wall)' : ''}` : 'You died';
-    HUD.showDeath(kd, killer ? `Killer has ${Math.max(0, killer.hp)} HP left` : '');
+    const kd = killer ? `Killed by <span class="c${killer.team}">${killer.name}</span> with ${Icons.svg(wname)} ${wname}${hs ? ' (headshot)' : ''}${wall ? ' (through wall)' : ''}` : 'You died';
+    const lines = [];
+    if (killer) lines.push(`${killer.name} has ${Math.max(0, killer.hp)} HP left`);
+    for (const [o, e] of v.dmgOut) if (e.dmg > 0) lines.push(`You dealt ${e.dmg} damage to <span class="c${o.team}">${o.name}</span> in ${e.hits} hit${e.hits > 1 ? 's' : ''}`);
+    HUD.showDeath(kd, lines.join('<br>'));
     Sound.stopAll();
   }
 
@@ -605,16 +619,31 @@ class Game {
     else if (id === 'helmet') { a.armor = 100; a.helmet = true; }
     else if (id === 'defuser') a.inv.defuser = true;
     if (ui) { Sound.play('ui_buy', { vol: 0.6 }); HUD.moneyFlash(); }
+    if (a.isPlayer && ui && !a.lastBuy.includes(id)) a.lastBuy.push(id);
     return true;
+  }
+  // Buy again what you bought last round, in the same order, skipping what you already have
+  rebuy(a) {
+    let n = 0;
+    for (const id of a.lastBuy.slice()) if (this.buy(a, id, false)) n++;
+    if (n) { Sound.play('ui_buy', { vol: 0.6 }); HUD.moneyFlash(); } else Sound.play('ui_deny');
+    return n;
   }
   botBuy(a) {
     const m = () => a.money;
-    const rifle = a.team === 'T' ? 'ak47' : 'm4a4';
+    const T = a.team === 'T';
+    const rifle = T ? 'ak47' : 'm4a4', budget = T ? 'galil' : 'famas', scoped = T ? 'sg553' : 'aug', smg = T ? 'mac10' : 'mp9';
     if (!a.inv.primary) {
-      if (m() >= 4750 + 1000 && Math.random() < 0.2) this.buy(a, 'awp');
+      const r = Math.random();
+      if (m() >= 4750 + 1000 && r < 0.2) this.buy(a, 'awp');
+      else if (m() >= WEAPONS[scoped].price + 1000 && r < 0.3) this.buy(a, scoped);
       else if (m() >= WEAPONS[rifle].price + 650) this.buy(a, rifle);
-      else if (m() >= 1250 + 650 && Math.random() < 0.55) this.buy(a, 'mp9');
-      else if (m() >= 700 && Math.random() < 0.45 && !(a.inv.secondary && a.inv.secondary.id === 'deagle')) this.buy(a, 'deagle');
+      else if (m() >= WEAPONS[budget].price + 650 && r < 0.6) this.buy(a, budget);
+      else if (m() >= 1700 + 650 && r < 0.75) this.buy(a, 'ssg08');
+      else if (m() >= 1200 + 650 && r < 0.5) this.buy(a, Math.random() < 0.5 ? 'ump45' : smg);
+      else if (m() >= 1050 + 650 && r < 0.35) this.buy(a, 'nova');
+      else if (m() >= 700 && r < 0.6 && !(a.inv.secondary && a.inv.secondary.id === 'deagle')) this.buy(a, Math.random() < 0.5 ? 'deagle' : (T ? 'tec9' : 'fiveseven'));
+      else if (m() >= 300 && r < 0.5 && a.inv.secondary && (a.inv.secondary.id === 'glock' || a.inv.secondary.id === 'usp')) this.buy(a, 'p250');
     }
     if (m() >= 1000 && !a.helmet) this.buy(a, 'helmet'); else if (m() >= 650 && a.armor < 100) this.buy(a, 'kevlar');
     if (a.team === 'CT' && m() >= 400 && Math.random() < 0.6) this.buy(a, 'defuser');
@@ -651,6 +680,7 @@ class Game {
       c.attack = false; c.attack2 = false;
       for (let n = 1; n <= 6; n++) if (I.wasPressed('Digit' + n)) HUD.buyKey(this, n);
       if (I.wasPressed('Digit0') || I.wasPressed('Backspace')) HUD.buyBack();
+      if (I.wasPressed('KeyR')) this.rebuy(P);
       if (I.wasPressed('Escape')) HUD.closeBuy(true);
     } else {
       c.attack = I.mouse[0]; c.attackPressed = I.mPressed[0];
@@ -663,7 +693,7 @@ class Game {
         c.slotReq = order[(i + (I.wheel > 0 ? 1 : -1) + order.length) % order.length];
       }
     }
-    c.reload = I.wasPressed('KeyR');
+    c.reload = !ui && I.wasPressed('KeyR');
     c.use = k('KeyE'); c.usePressed = I.wasPressed('KeyE');
     if (I.wasPressed('KeyF')) c.inspect = true;
     if (I.wasPressed('KeyG')) c.drop = true;
@@ -786,8 +816,8 @@ class Game {
       if (a.alive) {
         h.root.visible = true;
         h.root.position.copy(a.renderPos);
-        h.root.rotation.y = a.yaw;
-        h.update(dt, { speed: a.hspeed(), crouch: a.ducked || a.sliding, pitch: a.pitch, reloading: a.reloading });
+        const hs = a.hspeed();
+        h.update(dt, { speed: hs, crouch: a.ducked || a.sliding, pitch: a.pitch, yaw: a.yaw, moveYaw: hs > 0.5 ? yawOf(a.vel.x, a.vel.z) : null, reloading: a.reloading, onGround: a.onGround });
         h.root.updateMatrixWorld(true);
         if (a.isPlayer) h.skeleton.update();   // In first person the main camera can't see own model, so refresh the skeleton manually for shadows
       }
@@ -814,7 +844,7 @@ class Game {
     Effects.update(dt, cam);
     const view = P.alive ? P : null;
     const sunVis = this.sunVisibility(cam.position);
-    if (view) this.vm.update(dt, P, cam.quaternion, mx, my, sunVis);
+    if (view) { this.vm.camPos.copy(cam.position); this.vm.update(dt, P, cam.quaternion, mx, my, sunVis); }
     else { this.vm.root.visible = false; P.events.length = 0; }
     // Post-processing params
     if (this.flashHold > 0) this.flashHold -= dt; else this.flashAmt = Math.max(0, this.flashAmt - dt * 0.55);
@@ -927,8 +957,8 @@ class ModeTDM {
     a.stripForNewGame();
     a.inv.secondary = new WeaponInst(a.team === 'T' ? 'glock' : 'usp');
     if (a.isBot) {
-      const r = Math.random();
-      a.inv.primary = new WeaponInst(r < 0.12 ? 'awp' : r < 0.25 ? 'mp9' : a.team === 'T' ? 'ak47' : 'm4a4');
+      const r = Math.random(), T = a.team === 'T';
+      a.inv.primary = new WeaponInst(r < 0.1 ? 'awp' : r < 0.18 ? 'ssg08' : r < 0.3 ? (T ? 'mac10' : 'mp9') : r < 0.38 ? 'ump45' : r < 0.46 ? 'nova' : r < 0.58 ? (T ? 'galil' : 'famas') : r < 0.66 ? (T ? 'sg553' : 'aug') : T ? 'ak47' : 'm4a4');
       a.inv.nades.he = Math.random() < 0.4 ? 1 : 0;
     } else a.inv.primary = new WeaponInst(a.team === 'T' ? 'ak47' : 'm4a4');
     a.armor = 100; a.helmet = true;
@@ -1023,7 +1053,9 @@ class ModeComp {
   constructor(g) {
     this.g = g; this.id = 'comp'; this.title = 'Demolition'; this.infiniteMoney = false; this.spectateAllowed = true;
     this.score = { CT: 0, T: 0 }; this.round = 0; this.phase = 'freeze'; this.t = 0; this.roundTime = 115; this.freezeTime = 8; this.buyWindow = 18;
-    this.toWin = 9; this.half = 8; this.lossStreak = { CT: 0, T: 0 };
+    // Rounds to win: short (9), MR12 (13) or MR15 (16); the half ends one round before a side could win it
+    this.toWin = g.opts.toWin || 9; this.half = this.toWin - 1; this.lossStreak = { CT: 0, T: 0 };
+    this.history = [];
     this.bomb = null; this.bombMesh = null; this.bombLight = null;
   }
   setup() {
@@ -1044,7 +1076,7 @@ class ModeComp {
     const pts = { CT: shuffle(g.map.spawns.CT.slice()), T: shuffle(g.map.spawns.T.slice()) };
     for (const a of g.actors) {
       if (!a.alive) { a.inv.primary = null; a.inv.secondary = null; a.inv.nades = { he: 0, flash: 0, smoke: 0 }; a.armor = 0; a.helmet = false; a.inv.defuser = false; }
-      a.inv.c4 = false;
+      a.inv.c4 = false; a.dmgOut.clear(); a.roundsPlayed++; if (a.isPlayer) a.lastBuy = [];
       this.defaultPistol(a);
       for (const s of ['primary', 'secondary']) if (a.inv[s]) { const w = a.inv[s]; w.reserve = w.def.reserve; }
       a.spawnAt(pts[a.team].pop() || g.map.spawns[a.team][0], a.team === 'T' ? 0 : Math.PI);
@@ -1064,7 +1096,7 @@ class ModeComp {
     const g = this.g;
     for (const a of g.actors) {
       a.team = a.team === 'T' ? 'CT' : 'T';
-      a.money = 800; a.stripForNewGame(); a.alive = false;
+      a.money = 800; a.stripForNewGame(); a.alive = false; a.lastBuy = [];
       g.resetModel(a, true);
       if (a.isBot) a.name = a.name;
     }
@@ -1244,6 +1276,7 @@ class ModeComp {
     if (this.phase !== 'live') return;
     this.phase = 'post'; this.t = 5.5;
     this.score[winner]++;
+    this.history.push({ winner, reason, round: this.round });
     const loser = winner === 'CT' ? 'T' : 'CT';
     const bonus = reason === 'bomb' || reason === 'defuse' ? 3500 : 3250;
     const lossPay = Math.min(3400, 1400 + 500 * this.lossStreak[loser]);
@@ -1259,6 +1292,7 @@ class ModeComp {
     for (const a of g.actors) a.mvpFlag = false;
     const why = { elim: 'Enemy team eliminated', time: 'Time ran out', bomb: 'Target destroyed', defuse: 'Bomb defused' }[reason];
     g.center([winner === 'CT' ? 'Defenders win' : 'Attackers win', winner === 'CT' ? 'win-ct' : 'win-t', 5, `${why}${mvp ? ' · Round MVP: ' + mvp.name : ''}`]);
+    HUD.roundEnd(this, winner, why, mvp);
     g.sound2d((a) => [winner === a.team ? 'round_win' : 'round_lose', 0.55]);
     g.noFire = false;
   }

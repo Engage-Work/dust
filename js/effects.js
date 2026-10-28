@@ -137,10 +137,11 @@ class DecalSet {
 
 const Effects = (() => {
   let scene, world, P, PA, smokeSys, holes, blood, scorch;
-  const tracers = [], shells = [], flashes = [], lights = [];
-  let shellMesh = null; const SHELL_MAX = 96;
+  const tracers = [], shells = [], flashes = [], lights = [], mags = [];
+  let shellMesh = null, shotShellMesh = null; const SHELL_MAX = 96, MAG_MAX = 24;
   const smokes = [];
   const tmpHit = {};
+  const camPos = new THREE.Vector3();
   const DUST = { stone: [0.62, 0.55, 0.46], sand: [0.6, 0.5, 0.36], wood: [0.42, 0.32, 0.22], metal: [0.35, 0.34, 0.33] };
   const HOLE_TINT = { stone: [1, 1, 1], sand: [0.9, 0.85, 0.8], wood: [0.8, 0.65, 0.5], metal: [0.6, 0.62, 0.66] };
 
@@ -168,6 +169,11 @@ const Effects = (() => {
       shellMesh = new THREE.InstancedMesh(sg, new THREE.MeshStandardMaterial({ color: 0xd8aa52, roughness: 0.28, metalness: 1 }), SHELL_MAX);
       shellMesh.count = 0; shellMesh.frustumCulled = false; shellMesh.castShadow = false;
       scene.add(shellMesh);
+      // Shotgun hulls: fatter, red plastic with a brass head
+      const hg = new THREE.CylinderGeometry(0.0095, 0.0095, 0.058, 8); hg.rotateZ(Math.PI / 2);
+      shotShellMesh = new THREE.InstancedMesh(hg, new THREE.MeshStandardMaterial({ color: 0xb3261e, roughness: 0.55, metalness: 0.1 }), SHELL_MAX);
+      shotShellMesh.count = 0; shotShellMesh.frustumCulled = false; shotShellMesh.castShadow = false;
+      scene.add(shotShellMesh);
       // 第三人称枪口焰
       for (let i = 0; i < 10; i++) {
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: S.flash, color: new THREE.Color(6, 4.5, 2.5), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
@@ -223,6 +229,8 @@ const Effects = (() => {
             { life: rand(0.5, 1.0), s0: rand(0.02, 0.045), atlas: 3, c: [0.55, 0.4, 0.24], grav: 9.8, drag: 0.4, rv: rand(-20, 20) });
         }
       }
+      // A brief flash of light on hard surfaces reads as the bullet strike itself
+      if (fx !== 'sand' && point.distanceToSquared(camPos) < 400) api.light(_v2.copy(point).addScaledVector(normal, 0.08), 0.6, 0.04, 0xffd2a0, 2.5);
       if (!noDecal) holes.add(point, normal, fx === 'metal' ? rand(0.05, 0.065) : rand(0.06, 0.09), HOLE_TINT[fx] || HOLE_TINT.stone);
     },
 
@@ -256,9 +264,23 @@ const Effects = (() => {
       t.mesh.visible = true;
     },
 
-    shell(pos, vel, big) {
+    shell(pos, vel, big, shotgun) {
       if (shells.length >= SHELL_MAX) shells.shift();
-      shells.push({ p: pos.clone(), v: vel.clone(), r: new THREE.Euler(rand(0, 6), rand(0, 6), rand(0, 6)), w: new THREE.Vector3(rand(-25, 25), rand(-25, 25), rand(-25, 25)), life: 0, bounces: 0, rest: false, big: !!big });
+      shells.push({ p: pos.clone(), v: vel.clone(), r: new THREE.Euler(rand(0, 6), rand(0, 6), rand(0, 6)), w: new THREE.Vector3(rand(-25, 25), rand(-25, 25), rand(-25, 25)), life: 0, bounces: 0, rest: false, big: !!big, shotgun: !!shotgun });
+    },
+    // The magazine that falls out of a gun during a reload: tumbles, bounces once or twice and stays on the floor a while
+    dropMag(id, pos, vel, quat) {
+      const mdl = Models.magModel(id);
+      if (!mdl) return;
+      mdl.quaternion.copy(quat); mdl.position.copy(pos);
+      scene.add(mdl);
+      if (mags.length >= MAG_MAX) { const old = mags.shift(); scene.remove(old.mesh); }
+      mags.push({ mesh: mdl, p: pos.clone(), v: vel.clone(), w: new THREE.Vector3(rand(-6, 6), rand(-4, 4), rand(-6, 6)), life: 0, rest: false, bounces: 0 });
+    },
+    // A thin wisp of gas from the muzzle after a shot
+    muzzleSmoke(pos, dir) {
+      P.spawn(pos.x, pos.y, pos.z, dir.x * rand(0.6, 1.4) + rand(-0.15, 0.15), rand(0.25, 0.5), dir.z * rand(0.6, 1.4) + rand(-0.15, 0.15),
+        { life: rand(0.6, 1.0), s0: 0.03, s1: rand(0.14, 0.22), atlas: 1, a: 0.18, c: [0.75, 0.72, 0.68], drag: 3.5, grav: -0.3, rv: rand(-1, 1) });
     },
 
     muzzle(pos, scale = 1) {
@@ -314,7 +336,28 @@ const Effects = (() => {
     },
 
     update(dt, cam) {
-      // 环境浮尘：阳光里缓慢漂浮的细小颗粒
+      camPos.copy(cam.position);
+      // Dropped magazines
+      for (let i = mags.length - 1; i >= 0; i--) {
+        const g = mags[i];
+        g.life += dt;
+        if (g.life > 14) { scene.remove(g.mesh); mags.splice(i, 1); continue; }
+        if (!g.rest) {
+          g.v.y -= 9.8 * dt;
+          g.p.addScaledVector(g.v, dt);
+          g.mesh.rotation.x += g.w.x * dt; g.mesh.rotation.y += g.w.y * dt; g.mesh.rotation.z += g.w.z * dt;
+          const top = world.surfaceTop(g.p.x, g.p.z, g.p.y + 0.3);
+          if (g.p.y < top + 0.03) {
+            g.p.y = top + 0.03;
+            if (Math.abs(g.v.y) < 0.8 || g.bounces > 2) { g.rest = true; g.mesh.rotation.set(Math.PI / 2 + rand(-0.2, 0.2), g.mesh.rotation.y, rand(-0.3, 0.3)); g.p.y = top + 0.015; }
+            else { g.v.y = -g.v.y * 0.3; g.v.x *= 0.5; g.v.z *= 0.5; g.w.multiplyScalar(0.5); g.bounces++; }
+            if (g.bounces <= 2) Sound.play('magdrop', { pos: g.p, vol: 0.35, rate: rand(0.9, 1.1), ref: 1.5, rev: 0.1 });
+          }
+          if (world.pointSolid(g.p.x, g.p.y, g.p.z)) { g.v.x *= -0.3; g.v.z *= -0.3; g.p.addScaledVector(g.v, dt * 2); }
+          g.mesh.position.copy(g.p);
+        }
+      }
+      // Ambient dust: small motes drifting in the sunlight
       if (Settings.data.motionFx !== false && Math.random() < dt * 14) {
         const c = cam.position;
         P.spawn(c.x + rand(-7, 7), c.y + rand(-1.2, 2.5), c.z + rand(-7, 7), rand(0.05, 0.25), rand(-0.03, 0.06), rand(-0.1, 0.1),
@@ -358,11 +401,15 @@ const Effects = (() => {
           }
           if (world.pointSolid(s.p.x, s.p.y, s.p.z)) { s.v.x *= -0.3; s.v.z *= -0.3; s.p.addScaledVector(s.v, dt * 2); }
         }
+      }
+      shellMesh.count = 0; shotShellMesh.count = 0;
+      for (let i = 0; i < shells.length; i++) {
+        const s = shells[i];
         q.setFromEuler(s.r);
         m4.compose(s.p, q, _shellS.set(s.big ? 1.25 : 1, 1, 1));
-        shellMesh.setMatrixAt(i, m4);
+        if (s.shotgun) shotShellMesh.setMatrixAt(shotShellMesh.count++, m4); else shellMesh.setMatrixAt(shellMesh.count++, m4);
       }
-      shellMesh.count = shells.length; shellMesh.instanceMatrix.needsUpdate = true;
+      shellMesh.instanceMatrix.needsUpdate = true; shotShellMesh.instanceMatrix.needsUpdate = true;
       // 枪口焰
       for (const f of flashes) if (f.sp.visible) { f.t += dt; if (f.t > 0.05) f.sp.visible = false; }
       // 光
@@ -408,6 +455,7 @@ const Effects = (() => {
     },
     clearRound() {
       smokes.length = 0; smokeSys.clear(); shells.length = 0;
+      for (const g of mags) scene.remove(g.mesh); mags.length = 0;
       for (const t of tracers) { t.active = false; t.mesh.visible = false; }
     },
     clearAll() { api.clearRound(); holes.clear(); blood.clear(); scorch.clear(); P.clear(); PA.clear(); },

@@ -97,6 +97,17 @@ const Sound = (() => {
     deagle: { dur: 1.5, crack: 1.0, crackHP: 2000, body: 1.0, bodyLP: 2300, bodyDecay: 0.06, mid: 0.55, midF: 520, midDecay: 0.12, thump: 1.05, f0: 130, f1: 42, thumpDecay: 0.11, tail: 0.26, tailLP: 700, tailDecay: 0.5, echo: 0.22, echoDelay: 0.13 },
     glock: { dur: 0.9, crack: 0.9, crackHP: 3500, body: 0.8, bodyLP: 3800, bodyDecay: 0.03, mid: 0.35, midF: 1100, midDecay: 0.06, thump: 0.5, f0: 210, f1: 70, thumpDecay: 0.05, tail: 0.15, tailLP: 1000, tailDecay: 0.26, echo: 0.12, echoDelay: 0.09 },
     mp9: { dur: 0.9, crack: 0.85, crackHP: 3200, body: 0.85, bodyLP: 3500, bodyDecay: 0.035, mid: 0.4, midF: 1000, midDecay: 0.06, thump: 0.55, f0: 185, f1: 64, thumpDecay: 0.05, tail: 0.15, tailLP: 1000, tailDecay: 0.25, echo: 0.12, echoDelay: 0.09 },
+    p250: { dur: 1.0, crack: 0.95, crackHP: 3000, body: 0.85, bodyLP: 3200, bodyDecay: 0.035, mid: 0.4, midF: 900, midDecay: 0.07, thump: 0.65, f0: 190, f1: 62, thumpDecay: 0.06, tail: 0.17, tailLP: 900, tailDecay: 0.3, echo: 0.14, echoDelay: 0.1 },
+    fiveseven: { dur: 0.9, crack: 1.0, crackHP: 3800, body: 0.75, bodyLP: 4000, bodyDecay: 0.028, mid: 0.3, midF: 1300, midDecay: 0.05, thump: 0.45, f0: 230, f1: 78, thumpDecay: 0.045, tail: 0.14, tailLP: 1100, tailDecay: 0.24, echo: 0.11, echoDelay: 0.09 },
+    tec9: { dur: 0.95, crack: 0.9, crackHP: 3100, body: 0.9, bodyLP: 3400, bodyDecay: 0.034, mid: 0.45, midF: 1000, midDecay: 0.065, thump: 0.6, f0: 200, f1: 66, thumpDecay: 0.055, tail: 0.16, tailLP: 1000, tailDecay: 0.27, echo: 0.13, echoDelay: 0.09 },
+    mac10: { dur: 0.85, crack: 0.8, crackHP: 2900, body: 0.9, bodyLP: 3000, bodyDecay: 0.036, mid: 0.45, midF: 850, midDecay: 0.065, thump: 0.6, f0: 175, f1: 60, thumpDecay: 0.05, tail: 0.15, tailLP: 950, tailDecay: 0.25, echo: 0.12, echoDelay: 0.09 },
+    ump45: { dur: 1.0, crack: 0.85, crackHP: 2600, body: 0.95, bodyLP: 2800, bodyDecay: 0.042, mid: 0.5, midF: 720, midDecay: 0.08, thump: 0.75, f0: 160, f1: 54, thumpDecay: 0.065, tail: 0.18, tailLP: 900, tailDecay: 0.3, echo: 0.14, echoDelay: 0.1 },
+    galil: { dur: 1.25, crack: 0.9, crackHP: 2400, body: 1.0, bodyLP: 2700, bodyDecay: 0.05, mid: 0.5, midF: 680, midDecay: 0.1, thump: 0.85, f0: 150, f1: 50, thumpDecay: 0.08, tail: 0.22, tailLP: 850, tailDecay: 0.36, echo: 0.18, echoDelay: 0.1 },
+    famas: { dur: 1.15, crack: 1.0, crackHP: 3200, body: 0.85, bodyLP: 3400, bodyDecay: 0.042, mid: 0.42, midF: 950, midDecay: 0.085, thump: 0.7, f0: 170, f1: 56, thumpDecay: 0.07, tail: 0.19, tailLP: 950, tailDecay: 0.32, echo: 0.16, echoDelay: 0.1 },
+    sg553: { dur: 1.25, crack: 0.95, crackHP: 2700, body: 1.0, bodyLP: 2900, bodyDecay: 0.05, mid: 0.5, midF: 760, midDecay: 0.1, thump: 0.85, f0: 150, f1: 50, thumpDecay: 0.08, tail: 0.22, tailLP: 850, tailDecay: 0.36, echo: 0.18, echoDelay: 0.11 },
+    aug: { dur: 1.2, crack: 1.0, crackHP: 3100, body: 0.9, bodyLP: 3200, bodyDecay: 0.045, mid: 0.45, midF: 880, midDecay: 0.09, thump: 0.75, f0: 165, f1: 55, thumpDecay: 0.075, tail: 0.2, tailLP: 950, tailDecay: 0.34, echo: 0.17, echoDelay: 0.1 },
+    ssg08: { dur: 1.8, crack: 1.0, crackHP: 2000, body: 1.0, bodyLP: 2200, bodyDecay: 0.075, mid: 0.55, midF: 480, midDecay: 0.15, thump: 1.1, f0: 125, f1: 40, thumpDecay: 0.14, tail: 0.3, tailLP: 650, tailDecay: 0.65, echo: 0.26, echoDelay: 0.15 },
+    nova: { dur: 1.7, crack: 1.0, crackHP: 1500, body: 1.2, bodyLP: 1700, bodyDecay: 0.09, mid: 0.7, midF: 380, midDecay: 0.16, thump: 1.3, f0: 105, f1: 36, thumpDecay: 0.15, tail: 0.36, tailLP: 600, tailDecay: 0.7, echo: 0.28, echoDelay: 0.16 },
   };
   function genShot(p) {
     const out = new Float32Array(len(p.dur));
@@ -135,6 +146,11 @@ const Sound = (() => {
     reg('bolt', 2, () => { const o = new Float32Array(len(0.35)); mix(o, click(2200, 4, 0.004), 0, 0.8); mix(o, filt(white(len(0.12)), 'bp', 1600, 1.4), 0.02, 0.5, env(0.005, 0.04)); mix(o, click(2400, 3, 0.006), 0.13, 1.3); mix(o, ring(0.15, [[1700, 0.3, 0.03], [2650, 0.2, 0.02]]), 0.13, 1); mix(o, tone(0.08, 200, 120, 0.02), 0.13, 0.4, env(0.001, 0.02)); return norm(o, 0.9); });
     reg('slideback', 1, () => { const o = new Float32Array(len(0.2)); mix(o, click(2600, 4, 0.004), 0, 0.8); mix(o, click(2000, 3, 0.006), 0.06, 1.2); mix(o, ring(0.1, [[2300, 0.3, 0.02]]), 0.06, 1); return norm(o, 0.85); });
     reg('awpbolt', 1, () => { const o = new Float32Array(len(0.65)); mix(o, click(2000, 4, 0.006), 0, 0.9); mix(o, filt(white(len(0.12)), 'bp', 1400, 1.5), 0.1, 0.6, env(0.006, 0.04)); mix(o, click(1700, 3, 0.006), 0.2, 0.7); mix(o, filt(white(len(0.12)), 'bp', 1700, 1.5), 0.3, 0.6, env(0.006, 0.04)); mix(o, click(2300, 4, 0.006), 0.42, 1.2); mix(o, ring(0.12, [[1900, 0.3, 0.03]]), 0.42, 1); return norm(o, 0.9); });
+    reg('shell_in', 2, () => { const o = new Float32Array(len(0.2)); mix(o, filt(white(len(0.05)), 'bp', 1900, 1.3), 0, 0.5, env(0.003, 0.015)); mix(o, click(2200, 4, 0.004), 0.04, 1.0); mix(o, ring(0.12, [[1500, 0.3, 0.03], [3100, 0.2, 0.02]]), 0.04, 0.8); return norm(o, 0.7); });
+    reg('pump', 2, () => { const o = new Float32Array(len(0.4)); mix(o, click(1800, 3, 0.006), 0, 0.9); mix(o, filt(white(len(0.14)), 'bp', 1200, 1.2), 0.02, 0.7, env(0.006, 0.05)); mix(o, click(2100, 3, 0.006), 0.17, 1.3); mix(o, ring(0.18, [[1400, 0.4, 0.04], [2500, 0.25, 0.03]]), 0.17, 1); mix(o, tone(0.1, 160, 100, 0.03), 0.17, 0.5, env(0.001, 0.03)); return norm(o, 0.9); });
+    reg('magdrop', 3, () => { const o = new Float32Array(len(0.35)); mix(o, click(900 + rand(-150, 150), 2, 0.012), 0, 1); mix(o, ring(0.3, [[700 + rand(-80, 80), 0.6, 0.06], [1900, 0.4, 0.04], [3200, 0.25, 0.03]]), 0, 0.9); mix(o, click(1200, 2, 0.008), 0.09, 0.4); return norm(o, 0.6); });
+    reg('cloth', 3, () => { const o = new Float32Array(len(0.25)); mix(o, filt(white(len(0.25)), 'bp', 1800 + rand(-300, 300), 0.5), 0, 0.6, (t) => (1 - Math.exp(-t / 0.03)) * Math.exp(-t / 0.08)); return norm(o, 0.3); });
+    reg('hit_armor', 2, () => { const o = new Float32Array(len(0.18)); mix(o, ring(0.18, [[1100, 0.8, 0.05], [2300, 0.5, 0.04], [3600, 0.3, 0.03]]), 0, 1); mix(o, click(2500, 3, 0.004), 0, 0.6); mix(o, tone(0.08, 150, 90, 0.02), 0, 0.5, env(0.001, 0.03)); return norm(o, 0.65); });
     reg('deploy', 2, () => { const o = new Float32Array(len(0.3)); mix(o, filt(white(len(0.2)), 'bp', 2400, 0.6), 0, 0.5, env(0.03, 0.06)); mix(o, click(2600, 4, 0.004), 0.16, 0.8); return norm(o, 0.6); });
     reg('pin', 1, () => { const o = new Float32Array(len(0.3)); mix(o, click(3000, 5, 0.004), 0, 1); mix(o, ring(0.25, [[2400, 0.4, 0.06], [3500, 0.3, 0.05]]), 0.002, 1); mix(o, click(2000, 3, 0.01), 0.12, 0.5); return norm(o, 0.7); });
     reg('throw', 1, () => { const n = len(0.3); const s = sweepBP(n, 500, 1800, 1.5); for (let i = 0; i < n; i++) s[i] *= Math.sin(Math.PI * i / n); return norm(s, 0.6); });
@@ -266,7 +282,7 @@ const Sound = (() => {
       if (!AC) return;
       try { ctx = new AC({ latencyHint: 'interactive' }); } catch (e) { ctx = new AC(); }
       SR = ctx.sampleRate;
-      master = ctx.createGain(); master.gain.value = Settings.data.volume;
+      master = ctx.createGain(); master.gain.value = MUTED ? 0 : Settings.data.volume;
       comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -12; comp.knee.value = 10; comp.ratio.value = 5; comp.attack.value = 0.002; comp.release.value = 0.2;
       muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5;
@@ -278,7 +294,7 @@ const Sound = (() => {
       api.ready = true;
     },
     resume() { if (ctx && ctx.state !== 'running') ctx.resume(); },
-    setVolume(v) { if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
+    setVolume(v) { if (master) master.gain.setTargetAtTime(MUTED ? 0 : v, ctx.currentTime, 0.05); },
     has(name) { return !!B[name]; },
 
     // o: {pos, vol, rate, delay, lp, ref, roll, rev, noPitch}

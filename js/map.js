@@ -16,9 +16,9 @@ const MapGen = (() => {
     ny: { n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, 1] },
   };
   const FACE_KEYS = ['px', 'nx', 'pz', 'nz', 'py', 'ny'];
-  const TEXS = { sand: 4, sandstone: 4, plaster: 4, concrete: 4, tile: 4, metal: 3, beam: 2.5, trim: 2, sack: 1.2, paint: 2, glass: 2, darkmetal: 2, rubber: 2, cloth: 2, lamp: 1 };
-  const FACEUV = { crate: true, door: true };
-  const PHYS_MAT = { sand: 'sand', sandstone: 'stone', plaster: 'plaster', concrete: 'concrete', tile: 'tile', crate: 'wood', metal: 'metal', door: 'wood', beam: 'wood', trim: 'stone', sack: 'sand', paint: 'metal', darkmetal: 'metal', glass: 'metal', rubber: 'wood', cloth: 'wood' };
+  const TEXS = { sand: 4, sandstone: 4, plaster: 4, concrete: 4, tile: 4, brick: 4, metal: 3, beam: 2.5, trim: 2, sack: 1.2, paint: 2, glass: 2, darkmetal: 2, rubber: 2, cloth: 2, lamp: 1, awning: 1.6 };
+  const FACEUV = { crate: true, door: true, rug: true };
+  const PHYS_MAT = { sand: 'sand', sandstone: 'stone', plaster: 'plaster', concrete: 'concrete', tile: 'tile', brick: 'stone', crate: 'wood', metal: 'metal', door: 'wood', beam: 'wood', trim: 'stone', sack: 'sand', paint: 'metal', darkmetal: 'metal', glass: 'metal', rubber: 'wood', cloth: 'wood', awning: 'wood', rug: 'sand' };
 
   const STYLES = [
     { mat: 'plaster', tint: [1.0, 0.96, 0.88] },
@@ -29,6 +29,8 @@ const MapGen = (() => {
     { mat: 'plaster', tint: [1.0, 0.8, 0.66] },
     { mat: 'concrete', tint: [1.0, 0.97, 0.92] },
     { mat: 'sandstone', tint: [1.04, 0.95, 0.86] },
+    { mat: 'brick', tint: [1, 1, 1] },
+    { mat: 'brick', tint: [0.9, 0.95, 1.0] },
   ];
 
   function injectAO(m) {
@@ -53,8 +55,9 @@ const MapGen = (() => {
     M.sand = std(T.sand); M.sandstone = std(T.sandstone); M.plaster = std(T.plaster); M.concrete = std(T.concrete);
     M.tile = std(T.tile); M.crate = std(T.crate); M.metal = std(T.metal, { metalness: 0.45 }); M.door = std(T.door);
     M.beam = std(T.beam); M.trim = std(T.trim); M.sack = std(T.sackcloth);
+    M.brick = std(T.brick); M.awning = std(T.awning, { side: THREE.DoubleSide }); M.rug = std(T.rug);
     // Realistic albedo: sand/plaster about 0.35~0.5 (linear)
-    const tone = { sand: 0.68, plaster: 0.74, sandstone: 0.84, tile: 0.6, concrete: 0.82, trim: 0.84, crate: 0.9, sack: 0.85 };
+    const tone = { sand: 0.68, plaster: 0.74, sandstone: 0.84, tile: 0.6, concrete: 0.82, trim: 0.84, crate: 0.9, sack: 0.85, brick: 0.8, awning: 0.9, rug: 0.85 };
     for (const k in tone) M[k].color.setScalar(tone[k]);
     M.paint = plain({ color: 0xffffff, roughness: 0.4, metalness: 0.3 });
     M.glass = plain({ color: 0x10161b, roughness: 0.06, metalness: 0.5 });
@@ -94,6 +97,17 @@ const MapGen = (() => {
       return b;
     };
     const decor = (x0, y0, z0, x1, y1, z1, mat, o = {}) => vis.push(Object.assign({ x0: Math.min(x0, x1), y0: Math.min(y0, y1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), y1: Math.max(y0, y1), z1: Math.max(z0, z1), mat }, o));
+
+    const props = { barrels: [], wheels: [], palms: [], wires: [], lamps: [], signs: [], doors: [], tanks: [], poles: [], posters: [], stains: [], tires: [] };
+    const tireStack = (x, z, n = 3) => { solid(x - 0.36, 0, z - 0.36, x + 0.36, n * 0.24, z + 0.36, 'rubber', { noVis: true }); for (let i = 0; i < n; i++) props.tires.push({ x: x + (Math.random() - 0.5) * 0.05, y: 0.12 + i * 0.24, z: z + (Math.random() - 0.5) * 0.05, ry: Math.random() * 6.28 }); };
+    const rubble = (x, z, n = 6, r = 1.0) => { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, d = Math.random() * r, sx = 0.15 + Math.random() * 0.3, sy = 0.1 + Math.random() * 0.22, sz = 0.15 + Math.random() * 0.3, cx = x + Math.cos(a) * d, cz = z + Math.sin(a) * d; const k = 0.85 + Math.random() * 0.2; decor(cx - sx / 2, 0, cz - sz / 2, cx + sx / 2, sy, cz + sz / 2, 'sandstone', { tint: [k, k * 0.96, k * 0.9] }); } };
+    const stain = (x, z, s = 1.6) => props.stains.push({ x, z, s });
+    const stall = (x, z, alongX, tint) => {
+      // Market stall: a wooden counter, two poles and a striped canopy
+      if (alongX) { solid(x - 1.4, 0, z - 0.5, x + 1.4, 0.95, z + 0.5, 'crate', { tint: [0.9, 0.86, 0.8] }); decor(x - 1.6, 2.2, z - 0.9, x + 1.6, 2.26, z + 0.9, 'awning', { tint, cull: false }); for (const px of [-1.5, 1.5]) for (const pz of [-0.8, 0.8]) decor(x + px - 0.03, 0, z + pz - 0.03, x + px + 0.03, 2.2, z + pz + 0.03, 'darkmetal', { tint: [0.6, 0.6, 0.6] }); }
+      else { solid(x - 0.5, 0, z - 1.4, x + 0.5, 0.95, z + 1.4, 'crate', { tint: [0.9, 0.86, 0.8] }); decor(x - 0.9, 2.2, z - 1.6, x + 0.9, 2.26, z + 1.6, 'awning', { tint, cull: false }); for (const px of [-0.8, 0.8]) for (const pz of [-1.5, 1.5]) decor(x + px - 0.03, 0, z + pz - 0.03, x + px + 0.03, 2.2, z + pz + 0.03, 'darkmetal', { tint: [0.6, 0.6, 0.6] }); }
+      for (let i = 0; i < 4; i++) { const k = 0.7 + Math.random() * 0.5; const bx = alongX ? x - 1.0 + i * 0.65 : x + (i % 2 ? 0.2 : -0.2), bz = alongX ? z + (i % 2 ? 0.2 : -0.2) : z - 1.0 + i * 0.65; decor(bx - 0.18, 0.95, bz - 0.14, bx + 0.18, 1.2, bz + 0.14, 'crate', { tint: [k, k * 0.9, k * 0.7] }); }
+    };
 
     // ---------------- Buildings (greedily merge same-style cells) ----------------
     const H = (s) => Tex.hash2(s[0], s[1], s[2]);
@@ -173,6 +187,7 @@ const MapGen = (() => {
             if (rr < 0.13 && j - i >= 1) {
               box(c0 - 0.1, c1 + 0.1, 0, 2.35, -0.01, 0.06, 'trim', trimTint);
               box(c0, c1, 0, 2.25, -0.01, 0.05, 'door', [1, 1, 1]);
+              if (s.along === 'x') props.doors.push({ x: (c0 + c1) / 2, z: s.fixed, nx: 0, nz: sign }); else props.doors.push({ x: s.fixed, z: (c0 + c1) / 2, nx: sign, nz: 0 });
             } else if (rr > 0.9 && b.height > 5) {
               // AC unit / electrical box
               box(c0 + 0.1, c1 - 0.1, 3.6, 4.2, 0, 0.35, 'darkmetal', [0.9, 0.9, 0.88]);
@@ -183,6 +198,48 @@ const MapGen = (() => {
       }
     }
 
+    // ---------------- Rooftops: parapets, water tanks, AC units, antennas ----------------
+    for (const b of buildings) {
+      if (b.height >= 11) continue;
+      const h = b.height, w = b.x1 - b.x0, d = b.z1 - b.z0;
+      const pt = [b.style.tint[0] * 0.9, b.style.tint[1] * 0.88, b.style.tint[2] * 0.86];
+      // Parapet around the roof edge
+      decor(b.x0, h, b.z0, b.x1, h + 0.35, b.z0 + 0.3, b.style.mat, { tint: pt, ao: false, cull: false });
+      decor(b.x0, h, b.z1 - 0.3, b.x1, h + 0.35, b.z1, b.style.mat, { tint: pt, ao: false, cull: false });
+      decor(b.x0, h, b.z0, b.x0 + 0.3, h + 0.35, b.z1, b.style.mat, { tint: pt, ao: false, cull: false });
+      decor(b.x1 - 0.3, h, b.z0, b.x1, h + 0.35, b.z1, b.style.mat, { tint: pt, ao: false, cull: false });
+      const r1 = rng(b.c0, b.r0, 31), r2 = rng(b.c0, b.r0, 32), r3 = rng(b.c0, b.r0, 33);
+      if (w >= 4 && d >= 4) {
+        if (r1 < 0.5) props.tanks.push({ x: b.x0 + 1.2 + r2 * (w - 2.4), y: h, z: b.z0 + 1.2 + r3 * (d - 2.4), r: 0.55 + r1 * 0.3, h: 0.9 + r2 * 0.5 });
+        if (r2 < 0.55) { const ax = b.x1 - 1.0 - r3 * (w - 2), az = b.z1 - 1.0 - r1 * (d - 2); decor(ax - 0.4, h, az - 0.3, ax + 0.4, h + 0.5, az + 0.3, 'darkmetal', { tint: [0.95, 0.95, 0.92], ao: false, cull: false }); decor(ax - 0.3, h + 0.5, az - 0.2, ax + 0.3, h + 0.55, az + 0.2, 'darkmetal', { tint: [0.5, 0.5, 0.5], ao: false, cull: false }); }
+        if (r3 < 0.4) { const px = b.x0 + 0.6 + r1 * (w - 1.2), pz = b.z0 + 0.6 + r2 * (d - 1.2), ph = 2.2 + r3 * 2; props.poles.push({ x: px, y: h, z: pz, h: ph }); for (let k = 0; k < 3; k++) decor(px - 0.25 - k * 0.1, h + ph - 0.3 - k * 0.35, pz - 0.01, px + 0.25 + k * 0.1, h + ph - 0.28 - k * 0.35, pz + 0.01, 'darkmetal', { tint: [0.5, 0.5, 0.5], ao: false, cull: false }); }
+        if (r1 > 0.6 && r2 > 0.4) decor(b.x0 + 0.8, h, b.z0 + 0.8, b.x0 + 2.4, h + 1.6, b.z0 + 2.2, 'sandstone', { tint: pt, ao: false, cull: false });   // stair head
+      }
+    }
+    // ---------------- Awnings over doors, rugs at thresholds, posters ----------------
+    for (const dr of props.doors) {
+      const r = rng(Math.round(dr.x * 3), Math.round(dr.z * 3), 41);
+      const sx = dr.nx, sz = dr.nz;   // outward normal
+      if (r < 0.55) {
+        const tint = r < 0.25 ? [1, 1, 1] : r < 0.4 ? [0.6, 0.75, 1.0] : [0.7, 0.85, 0.6];
+        if (sz) { decor(dr.x - 1.3, 2.4, dr.z, dr.x + 1.3, 2.46, dr.z + sz * 1.3, 'awning', { tint, cull: false }); for (const px of [-1.2, 1.2]) decor(dr.x + px - 0.03, 0, dr.z + sz * 1.25 - 0.03, dr.x + px + 0.03, 2.4, dr.z + sz * 1.25 + 0.03, 'darkmetal', { tint: [0.6, 0.6, 0.6] }); }
+        else { decor(dr.x, 2.4, dr.z - 1.3, dr.x + sx * 1.3, 2.46, dr.z + 1.3, 'awning', { tint, cull: false }); for (const pz of [-1.2, 1.2]) decor(dr.x + sx * 1.25 - 0.03, 0, dr.z + pz - 0.03, dr.x + sx * 1.25 + 0.03, 2.4, dr.z + pz + 0.03, 'darkmetal', { tint: [0.6, 0.6, 0.6] }); }
+      }
+      if (r > 0.45 && r < 0.8) {
+        if (sz) decor(dr.x - 0.8, 0, dr.z + sz * 0.1, dr.x + 0.8, 0.02, dr.z + sz * 1.3, 'rug', { tint: [1, 1, 1], ao: false });
+        else decor(dr.x + sx * 0.1, 0, dr.z - 0.8, dr.x + sx * 1.3, 0.02, dr.z + 0.8, 'rug', { tint: [1, 1, 1], ao: false });
+      }
+    }
+    for (const b of buildings) {
+      if (b.height >= 11) continue;
+      const r = rng(b.c0, b.r0, 51);
+      if (r > 0.65) continue;
+      // Poster on a free wall segment facing an open cell
+      const sides = [[b.x0 + 1.5, b.z0 - 0.01, 0, -1, b.c0, b.r0 - 1], [b.x0 + 1.5, b.z1 + 0.01, 0, 1, b.c0, b.r1 + 1], [b.x0 - 0.01, b.z0 + 1.5, -1, 0, b.c0 - 1, b.r0], [b.x1 + 0.01, b.z0 + 1.5, 1, 0, b.c1 + 1, b.r0]];
+      const sd = sides[Math.floor(r * 4 / 0.65) % 4];
+      if (isSolid(sd[4], sd[5])) continue;
+      props.posters.push({ x: sd[0], y: 1.5 + r * 0.6, z: sd[1], nx: sd[2], nz: sd[3], i: Math.floor(rng(b.c0, b.r0, 52) * 3), s: 0.9 + r * 0.4 });
+    }
     // ---------------- Ground (merged by material) ----------------
     const floorMat = (c, r) => {
       if (c >= 33 && c <= 44 && r >= 3 && r <= 14) return 'tile';
@@ -203,7 +260,6 @@ const MapGen = (() => {
     }
 
     // ---------------- Props / cover ----------------
-    const props = { barrels: [], wheels: [], palms: [], wires: [], lamps: [], signs: [] };
     const crate = (x, z, s = 1.63, y = 0, tint) => {
       const t = tint || [0.92 + Math.random() * 0.14, 0.9 + Math.random() * 0.12, 0.88 + Math.random() * 0.1];
       return solid(x - s / 2, y, z - s / 2, x + s / 2, y + s, z + s / 2, 'crate', { tint: t });
@@ -343,6 +399,13 @@ const MapGen = (() => {
     crate(-9.2, 31.8); crate(-7.55, 31.8); crate(-8.4, 31.8, 1.2, 1.63);
     sandbags(-3, 30.0, 1.5, 30.6);
     palm(-15.5, 42.5, 7); palm(13.5, 30.5, 8); palm(-16, 30, 6);
+    // Street dressing: stalls, tire stacks, rubble, stains, street lamps
+    stall(-4.5, 14, true, [1, 1, 1]); stall(4.6, -2, false, [0.6, 0.75, 1.0]);
+    stall(22.5, 30, true, [0.7, 0.85, 0.6]); stall(-26, -16, false, [1, 1, 1]);
+    tireStack(-8.5, 18.5); tireStack(39.5, -7.5, 4); tireStack(-33.5, -22, 2); tireStack(12.5, 36.5, 3);
+    rubble(27.5, -27, 7, 1.2); rubble(-38, -27.5, 6, 1.1); rubble(1.5, -14.5, 5, 0.9); rubble(36.5, 9, 6, 1.0); rubble(-22.5, 34.5, 5, 1.0); rubble(-11.5, -37.5, 6, 1.0);
+    stain(-2, 2); stain(31, -8, 2.2); stain(-30, -33, 1.4); stain(8, 35, 2.4); stain(-6.5, -41, 1.8); stain(37, 27.5, 2.0);
+    for (const [lx, lz] of [[-3.5, -9], [3.5, 10], [26, 34], [-24, 27], [39, -17], [-12, -40]]) { props.poles.push({ x: lx, y: 0, z: lz, h: 4.6 }); decor(lx - 0.03, 4.5, lz - 0.03, lx + 0.03, 4.56, lz + 0.7, 'darkmetal', { tint: [0.5, 0.5, 0.5] }); lamp(lx, 4.4, lz + 0.65); }
     // Power lines
     wire(new THREE.Vector3(-4, 6.2, -2), new THREE.Vector3(4, 5.6, 3), 0.9);
     wire(new THREE.Vector3(-4, 6.0, 4), new THREE.Vector3(4, 6.4, 6), 0.7);
@@ -563,6 +626,43 @@ const MapGen = (() => {
       });
       im.castShadow = true; group.add(im); group.add(ih);
     }
+    // Water tanks (rooftops)
+    if (props.tanks.length) {
+      const g = new THREE.CylinderGeometry(1, 1, 1, 16); g.translate(0, 0.5, 0);
+      const im = new THREE.InstancedMesh(g, P.barrel, props.tanks.length);
+      const m4 = new THREE.Matrix4(), col = new THREE.Color(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pp = new THREE.Vector3();
+      props.tanks.forEach((t, i) => { q.setFromAxisAngle(UP, Math.random() * 6.28); sc.set(t.r, t.h, t.r); pp.set(t.x, t.y, t.z); m4.compose(pp, q, sc); im.setMatrixAt(i, m4); const k = 0.6 + Math.random() * 0.5; im.setColorAt(i, col.setRGB(k, k * 0.95, k * 0.85)); });
+      im.castShadow = true; group.add(im);
+      const lid = new THREE.CylinderGeometry(1.04, 1.04, 0.08, 16);
+      const il = new THREE.InstancedMesh(lid, P.rim, props.tanks.length);
+      props.tanks.forEach((t, i) => { sc.set(t.r, 1, t.r); pp.set(t.x, t.y + t.h, t.z); q.identity(); m4.compose(pp, q, sc); il.setMatrixAt(i, m4); });
+      group.add(il);
+    }
+    // Poles: rooftop antennas and street lamps
+    if (props.poles.length) {
+      const pg = new THREE.CylinderGeometry(0.04, 0.05, 1, 8); pg.translate(0, 0.5, 0);
+      const im = new THREE.InstancedMesh(pg, P.rim, props.poles.length);
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pp = new THREE.Vector3();
+      props.poles.forEach((t, i) => { sc.set(1, t.h, 1); pp.set(t.x, t.y, t.z); q.identity(); m4.compose(pp, q, sc); im.setMatrixAt(i, m4); });
+      im.castShadow = true; group.add(im);
+    }
+    // Tire stacks
+    if (props.tires.length) {
+      const tg = new THREE.TorusGeometry(0.26, 0.11, 8, 18); tg.rotateX(Math.PI / 2);
+      const im = new THREE.InstancedMesh(tg, P.rubber, props.tires.length);
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pp = new THREE.Vector3();
+      props.tires.forEach((t, i) => { q.setFromAxisAngle(UP, t.ry); pp.set(t.x, t.y, t.z); m4.compose(pp, q, sc); im.setMatrixAt(i, m4); });
+      im.castShadow = true; im.receiveShadow = true; group.add(im);
+    }
+    // Posters and oil stains
+    for (const p of props.posters) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(p.s, p.s * 1.3), new THREE.MeshStandardMaterial({ map: SP.posters[p.i], transparent: true, alphaTest: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, roughness: 0.95 }));
+      m.position.set(p.x, p.y, p.z); m.rotation.y = Math.atan2(p.nx, p.nz); m.receiveShadow = true; group.add(m);
+    }
+    for (const st of props.stains) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(st.s, st.s), new THREE.MeshStandardMaterial({ map: SP.stain, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, roughness: 0.3, metalness: 0.2 }));
+      m.position.set(st.x, 0.01, st.z); m.rotation.set(-Math.PI / 2, 0, Math.random() * 6.28); m.receiveShadow = true; group.add(m);
+    }
     // Palm trees / power lines / chandeliers: merged per material into a few meshes (fewer draw calls)
     const bark = [], leaves = [], wires = [], bulbs = [], shades = [], cords = [];
     const put = (list, geo, pos, quat, rotEuler) => {
@@ -700,6 +800,7 @@ const MapGen = (() => {
         B: [['upper_tunnel', 'b_tunnel', 'b_exit', 'b_site'], ['top_mid', 'lower_tunnel', 'b_tunnel', 'b_exit', 'b_site']],
       },
       skyline, verts: totalV,
+      setEnvIntensity(k) { for (const key in M) if (M[key].envMapIntensity !== undefined) M[key].envMapIntensity = 0.9 * k; },
       inSite(p) { for (const k of ['A', 'B']) { const s = this.sites[k]; if (p.x >= s.min[0] && p.x <= s.max[0] && p.z >= s.min[1] && p.z <= s.max[1]) return k; } return null; },
       inBuyZone(team, p) { const z = this.buyZones[team]; return p.x >= z.min[0] && p.x <= z.max[0] && p.z >= z.min[1] && p.z <= z.max[1]; },
     };

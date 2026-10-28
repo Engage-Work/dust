@@ -2,7 +2,9 @@
 // ======================================================================
 //  core.js —— 常量 / 数学工具 / 设置 / 输入
 // ======================================================================
-const VERSION = '1.2.0';
+const VERSION = '2.0.0';
+// `?mute` silences the game for the session (Engage opens it that way while testing); nothing is saved
+const MUTED = /[?&]mute(=|&|$)/.test(location.search);
 
 const U = 0.0254;                 // 英寸 → 米（沿用经典 FPS 的英制单位制）
 const DEG = Math.PI / 180;
@@ -62,26 +64,28 @@ function $(id) { return document.getElementById(id); }
 // ======================================================================
 //  设置（localStorage 仅作便利，失败不影响运行）
 // ======================================================================
-const SETTINGS_KEY = 'sandstorm_fps_settings_v1';
+const SETTINGS_KEY = 'dustline_settings_v1';
+const OLD_SETTINGS_KEY = 'sandstorm_fps_settings_v1';
 // Sensitivity uses the classic 0.022° per count, but in a browser a count is a pointer pixel, and most
 // people play with their system's pointer acceleration on: 5 turns about 0.11° per pixel, a full turn
 // in roughly two sweeps of a trackpad. Raw input (no acceleration) stays available for those who want it.
 const DEFAULT_SETTINGS = {
-  version: 2,
+  version: 3,
   sens: 5, zoomSens: 1.0, rawInput: false, invertY: false,
   moveMode: 'walk', slide: true, toggleCrouch: false, kbLock: true, knife: 'butterfly',
-  crossStyle: 'static', crossSize: 5, crossGap: 3, crossThick: 2, crossColor: '#3dff7f', crossDot: false, crossOutline: true,
-  hitmarker: true,
+  crossStyle: 'static', crossSize: 5, crossGap: 3, crossThick: 2, crossColor: '#3dff7f', crossDot: false, crossOutline: true, crossT: false,
+  hitmarker: true, damageNumbers: true, killBanner: true,
   vmFov: 68, vmX: 1, vmY: 1, vmZ: -1, vmBob: true,
-  volume: 0.7,
-  quality: 'high', renderScale: 1.0, showFps: true, motionFx: true,
+  volume: 0.7, uiVolume: 0.8,
+  quality: 'high', renderScale: 1.0, showFps: true, motionFx: true, lensFlare: true, timeOfDay: 'noon',
 };
 const Settings = {
   data: Object.assign({}, DEFAULT_SETTINGS),
   listeners: [],
   load() {
     try {
-      const s = localStorage.getItem(SETTINGS_KEY);
+      // Settings saved by Sandstorm (this game's earlier name) carry over
+      const s = localStorage.getItem(SETTINGS_KEY) || localStorage.getItem(OLD_SETTINGS_KEY);
       if (s) Object.assign(this.data, JSON.parse(s));
       // Settings saved before version 2 kept the old defaults (1.6 with raw input), which made aiming
       // crawl; move them to the new ones, keeping any sensitivity someone chose themselves.

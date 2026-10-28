@@ -1,16 +1,18 @@
-# SANDSTORM
+# DUSTLINE
 
-A tactical shooter for the web: realistic gunplay plus burst sliding. Pure static files, nothing to install, no internet connection needed, and LAN multiplayer included.
+A tactical shooter for the web, built to feel like the classic 5v5 defusal games: realistic gunplay, a 24-weapon buy menu, a full economy, and burst sliding. Pure static files, nothing to install, no internet connection needed, LAN multiplayer included, and Play Together from Engage.
 
-> **Play online**: <https://engage-work.github.io/Cla-Go/>. Click and play, no download.
+Dustline is Engage's edition of [Cla-Go](https://github.com/Kwusv55/Cla-Go) by Kwusv55 (formerly published as Sandstorm). Every texture, sound and model is still made in code.
 
-![Main menu](docs/menu.jpg)
+> **Play online**: <https://engage-work.github.io/dustline/>. Click and play, no download.
 
-| A site | Mid fight |
-| --- | --- |
-| ![A site](docs/gameplay-a-site.jpg) | ![Mid](docs/gameplay-mid.jpg) |
+## What's new in Dustline
 
-*Screenshots show the original Chinese interface.*
+- **24 weapons**: Glock-18, USP-S, P250, Tec-9, Five-SeveN, Desert Eagle, MAC-10, MP9, UMP-45, Nova, Galil AR, FAMAS, AK-47, M4A4, SG 553, AUG, SSG 08, AWP, two knives, three grenades and the C4, each with its own model, recoil pattern and sound. The AUG and SG 553 have a rifle optic; the Nova fires nine pellets and reloads shell by shell.
+- **Reloads you can see**: the magazine tilts out and falls to the floor (and stays there), the fresh one comes up in the left hand, the bolt or slide is released on an empty gun, snipers cycle the bolt by hand, the Nova is pumped after every shot and loaded one shell at a time. Draw, inspect (with a mag check on rifles) and shell ejection match the action.
+- **Characters**: legs follow the direction of travel while the torso turns to the aim, feet have their own joints, hits rock the upper body, and both sides carry more kit: plate carriers with magazines, helmets with mounts and chin straps, keffiyeh wraps, holsters, elbow and knee pads, faces with eyes.
+- **Graphics**: a time of day (noon, dawn, dusk) with its own sun, sky, fog and environment light; sharper shadows that follow you; a sun flare; muzzle gas and bullet-strike light; brick, striped awning and rug materials; rooftop parapets, water tanks, antennas and air conditioners; market stalls, tire stacks, rubble, posters and oil stains in the streets.
+- **Quality of life**: damage numbers, a kill banner with multi-kill calls, weapon icons in the kill feed, weapon bar and buy menu, a weapon stat card in the buy menu, re-buy last round's kit with `R`, a death summary of the damage you dealt, ADR and HS% on the scoreboard, a round history strip, match length (first to 9 / 13 / 16) and friendly fire on the menu, teammate health bars and view cones on the radar, a T-style crosshair option.
 
 ## Getting started
 
@@ -42,7 +44,7 @@ Play with a roommate or classmates on the same WiFi (versus each other, or on th
 
 | Mode | Description |
 | --- | --- |
-| Demolition | 5v5 rounds with an economy. Attackers plant the C4, Defenders defuse it. First to 9 wins; sides switch after round 8 |
+| Demolition | 5v5 rounds with an economy. Attackers plant the C4, Defenders defuse it. First to 9, 13 or 16 wins; sides switch at the half |
 | Team Deathmatch | Instant respawn, free weapon swaps for 20 seconds after spawning, first to 50 kills |
 | Firing Range | Unlimited ammo, moving targets, live speed / spread / recoil index readout on the right |
 
@@ -61,7 +63,7 @@ Teammates get a side-colored marker and name overhead; when your crosshair is on
 | Ctrl / C | Crouch; **pressing it at near-full running speed = slide**, and jumping out of a slide keeps your momentum |
 | Space | Jump |
 | Left / right click | Fire / scope (snipers), heavy knife attack, underhand grenade throw |
-| R / F | Reload / inspect (the butterfly knife has full close, finger-roll and flip-open inspect animations) |
+| R / F | Reload / inspect (the butterfly knife has full close, finger-roll and flip-open inspect animations). `R` inside the buy menu re-buys last round's kit |
 | 1-5, Q, mouse wheel | Primary / secondary / knife / grenades / C4; Q quick-swaps |
 | E | Pick up weapons, plant (or hold left click) / defuse C4 |
 | G | Drop the current weapon |

@@ -1,7 +1,8 @@
 'use strict';
 // ======================================================================
-//  hud.js - tactical shooter HUD: crosshair, radar, health/armor, ammo, kill feed,
-//             hit direction, scoreboard, buy menu (real OS cursor), net graph
+//  hud.js - tactical shooter HUD: crosshair, radar, health/armor, ammo, kill feed with weapon icons,
+//             damage numbers, kill banner, hit direction, scoreboard with ADR / HS%, round history,
+//             buy menu (real OS cursor, weapon stat card, re-buy), net graph
 // ======================================================================
 const _hv = new THREE.Vector3(), _hd = new THREE.Vector3(), _he = new THREE.Vector3();
 const HUD = (() => {
@@ -9,17 +10,19 @@ const HUD = (() => {
   let crossKey = '', radarT = 0, game = null;
   const cache = {};
   const feed = [];
-  let buyOpen = false, buyCat = -1, buyCats = [];
-  let centerT = 0, hitT = 0, introLive = -1, introMode = '';
+  let buyOpen = false, buyCat = -1, buyCats = [], buyHover = null;
+  let centerT = 0, hitT = 0, introLive = -1, introMode = '', bannerT = 0;
+  const INTRO_KEY = 'dustline_seen_intro_';
 
   function setText(id, v) { if (cache[id] !== v) { cache[id] = v; E[id].textContent = v; } }
   function setHTML(id, v) { if (cache['h' + id] !== v) { cache['h' + id] = v; E[id].innerHTML = v; } }
   function show(id, on) { const k = 's' + id; if (cache[k] !== on) { cache[k] = on; E[id].classList.toggle('hidden', !on); } }
+  const MULTI = ['', '', 'Double kill', 'Triple kill', 'Quad kill', 'ACE'];
 
   const api = {
     init() {
-      for (const id of ['hud', 'crosshair', 'scope', 'hitmarker', 'dmgdir', 'radar', 'radarLabel', 'money', 'buyhint', 'aliveCT', 'aliveT', 'scoreCT', 'scoreT',
-        'timer', 'bombIcon', 'killfeed', 'center', 'subcenter', 'hpbox', 'hp', 'armor', 'hpbar', 'armorbar', 'armorIco', 'weaponbar', 'wname', 'mag', 'reserve',
+      for (const id of ['hud', 'crosshair', 'scope', 'hitmarker', 'dmgdir', 'dmgnums', 'killbanner', 'radar', 'radarLabel', 'money', 'buyhint', 'aliveCT', 'aliveT', 'scoreCT', 'scoreT',
+        'timer', 'bombIcon', 'roundhist', 'killfeed', 'center', 'subcenter', 'hpbox', 'hp', 'armor', 'hpbar', 'armorbar', 'armorIco', 'weaponbar', 'wname', 'wicon', 'mag', 'reserve',
         'progress', 'progressLabel', 'progressBar', 'netgraph', 'deathinfo', 'spectate', 'scoreboard', 'buymenu', 'tags', 'intro']) E[id] = $(id);
       E.tctx = E.tags.getContext('2d');
       E.rctx = E.radar.getContext('2d');
@@ -29,12 +32,18 @@ const HUD = (() => {
       E.buymenu.addEventListener('pointerdown', (e) => {
         if (!buyOpen || !game || e.button !== 0) return;
         const it = e.target.closest && e.target.closest('[data-buy]');
-        if (it) { e.preventDefault(); game.buy(game.player, it.dataset.buy, true); }
+        if (it) { e.preventDefault(); game.buy(game.player, it.dataset.buy, true); return; }
+        if (e.target.closest && e.target.closest('[data-rebuy]')) { e.preventDefault(); game.rebuy(game.player); }
+      });
+      E.buymenu.addEventListener('pointerover', (e) => {
+        const it = e.target.closest && e.target.closest('[data-buy]');
+        buyHover = it ? it.dataset.buy : null;
+        api.drawStatCard();
       });
       // Close on click (after mouseup) so the press that closes the menu can never reach the gun
       E.buymenu.addEventListener('click', (e) => { if (buyOpen && e.target.closest && e.target.closest('[data-close]')) api.closeBuy(true); });
     },
-    bind(g) { game = g; feed.length = 0; E.killfeed.innerHTML = ''; for (const k in cache) delete cache[k]; crossKey = ''; api.closeBuy(false); api.hideIntro(true); },
+    bind(g) { game = g; feed.length = 0; E.killfeed.innerHTML = ''; E.dmgnums.innerHTML = ''; for (const k in cache) delete cache[k]; crossKey = ''; api.closeBuy(false); api.hideIntro(true); E.killbanner.classList.add('hidden'); },
 
     // First-match hint: your side, the objective and the keys. Stays through freeze time, then fades a
     // few seconds into the round (or on H). Shown once per mode per browser.
@@ -55,16 +64,16 @@ const HUD = (() => {
     hideIntro(now) {
       if (introLive < 0) { if (now) E.intro.classList.add('hidden'); return; }
       introLive = -1;
-      try { localStorage.setItem('sandstorm_seen_intro_' + introMode, '1'); } catch (e) { /* private mode */ }
+      try { localStorage.setItem(INTRO_KEY + introMode, '1'); } catch (e) { /* private mode */ }
       if (now) E.intro.classList.add('hidden');
       else { E.intro.classList.add('out'); setTimeout(() => { if (introLive < 0) E.intro.classList.add('hidden'); }, 600); }
     },
-    introSeen(mode) { try { return localStorage.getItem('sandstorm_seen_intro_' + mode) === '1'; } catch (e) { return false; } },
+    introSeen(mode) { try { return localStorage.getItem(INTRO_KEY + mode) === '1'; } catch (e) { return false; } },
     get buyOpen() { return buyOpen; },
 
     drawCrosshair(extra, hide) {
       const S = Settings.data;
-      const key = [S.crossSize, S.crossGap, S.crossThick, S.crossColor, S.crossDot, S.crossOutline, Math.round(extra * 2), hide].join('|');
+      const key = [S.crossSize, S.crossGap, S.crossThick, S.crossColor, S.crossDot, S.crossOutline, S.crossT, Math.round(extra * 2), hide].join('|');
       if (key === crossKey) return;
       crossKey = key;
       const c = E.crosshair, g = E.cctx, dpr = Math.min(2, devicePixelRatio || 1);
@@ -78,7 +87,8 @@ const HUD = (() => {
       const cx = R, cy = R, h = th / 2;
       const rects = [];
       if (size > 0) {
-        rects.push([cx - h, cy - gap - size, th, size], [cx - h, cy + gap, th, size], [cx - gap - size, cy - h, size, th], [cx + gap, cy - h, size, th]);
+        if (!S.crossT) rects.push([cx - h, cy - gap - size, th, size]);
+        rects.push([cx - h, cy + gap, th, size], [cx - gap - size, cy - h, size, th], [cx + gap, cy - h, size, th]);
       }
       if (S.crossDot) rects.push([cx - h, cy - h, th, th]);
       if (S.crossOutline) { g.fillStyle = 'rgba(0,0,0,0.85)'; for (const r of rects) g.fillRect(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2); }
@@ -86,10 +96,32 @@ const HUD = (() => {
       for (const r of rects) g.fillRect(r[0], r[1], r[2], r[3]);
     },
 
-    hitmarker(kill) {
+    hitmarker(kill, hs) {
       if (!Settings.data.hitmarker) return;
       E.hitmarker.classList.toggle('kill', !!kill);
+      E.hitmarker.classList.toggle('hs', !!hs && !kill);
       E.hitmarker.style.opacity = 1; hitT = kill ? 0.35 : 0.15;
+    },
+    // Floating damage number at the hit point (drifts up and fades)
+    damageNumber(point, dmg, hs, armored) {
+      const cam = game && game.camera; if (!cam) return;
+      const v = _hv.copy(point); v.project(cam);
+      if (v.z > 1 || v.x < -1 || v.x > 1 || v.y < -1 || v.y > 1) return;
+      const d = document.createElement('div');
+      d.className = 'dn' + (hs ? ' hs' : '') + (armored ? ' ar' : '');
+      d.textContent = dmg;
+      d.style.left = ((v.x * 0.5 + 0.5) * innerWidth + rand(-8, 8)) + 'px';
+      d.style.top = ((-v.y * 0.5 + 0.5) * innerHeight - 10) + 'px';
+      E.dmgnums.appendChild(d);
+      while (E.dmgnums.children.length > 14) E.dmgnums.firstChild.remove();
+      setTimeout(() => d.remove(), 900);
+    },
+    killBanner(v, hs, n) {
+      if (!Settings.data.killBanner) return;
+      const multi = MULTI[Math.min(n, 5)] || '';
+      E.killbanner.innerHTML = `<div class="kb-name">${multi ? `<b>${multi}</b> · ` : ''}Killed <span class="c${v.team}">${v.name}</span>${hs ? ' <i>HEADSHOT</i>' : ''}</div>`;
+      E.killbanner.classList.remove('hidden', 'out');
+      bannerT = 1.6;
     },
     damageFrom(angleRad) {
       const d = document.createElement('div'); d.className = 'arc';
@@ -107,12 +139,19 @@ const HUD = (() => {
       const el = document.createElement('div');
       el.className = 'kf' + (o.mine ? ' mine' : '');
       const nm = (a) => a ? `<span class="c${a.team}">${a.name}</span>` : '';
-      el.innerHTML = `${o.killer ? nm(o.killer) : ''}<span class="w">${o.weapon}</span>${o.wallbang ? '<span class="wb">WB</span>' : ''}${o.hs ? '<span class="hs">HS</span>' : ''}${nm(o.victim)}`;
+      const icon = Icons.svg(o.weaponId || o.weapon, 'kfi') || `<span class="w">${o.weapon}</span>`;
+      el.innerHTML = `${o.killer ? nm(o.killer) : ''}${icon}${o.wallbang ? '<span class="wb">WB</span>' : ''}${o.hs ? '<span class="hs">HS</span>' : ''}${nm(o.victim)}`;
       E.killfeed.prepend(el);
       feed.push({ el, t: o.mine ? 9 : 6 });
       while (E.killfeed.children.length > 6) E.killfeed.lastChild.remove();
     },
     moneyFlash() { E.money.classList.remove('flash'); void E.money.offsetWidth; E.money.classList.add('flash'); },
+    roundEnd(md) { api.drawHistory(md); },
+    drawHistory(md) {
+      if (!md.history) { setHTML('roundhist', ''); return; }
+      const dots = md.history.map((h) => `<i class="${h.winner === 'CT' ? 'ct' : 't'}${h.round === md.half ? ' half' : ''}" title="Round ${h.round}: ${h.reason}"></i>`).join('');
+      setHTML('roundhist', dots);
+    },
 
     // Friend/foe markers: teammates get a team-colored marker + name overhead; name turns red when the crosshair is on a visible enemy
     drawTags(g) {
@@ -139,7 +178,12 @@ const HUD = (() => {
         ctx.beginPath(); ctx.moveTo(x - 7, y - 9); ctx.lineTo(x + 7, y - 9); ctx.lineTo(x, y + 1); ctx.closePath(); ctx.fill();
         ctx.fillStyle = col;
         ctx.beginPath(); ctx.moveTo(x - 5.5, y - 8); ctx.lineTo(x + 5.5, y - 8); ctx.lineTo(x, y - 0.5); ctx.closePath(); ctx.fill();
-        if (d < 30) { ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText(a.name, x + 1, y - 12); ctx.fillStyle = col; ctx.fillText(a.name, x, y - 13); }
+        if (d < 30) {
+          ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText(a.name, x + 1, y - 12); ctx.fillStyle = col; ctx.fillText(a.name, x, y - 13);
+          // A small health bar under the name so you know who needs cover
+          ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - 16, y - 10, 32, 3);
+          ctx.fillStyle = a.hp > 40 ? col : '#ff5a4a'; ctx.fillRect(x - 16, y - 10, 32 * clamp(a.hp / 100, 0, 1), 3);
+        }
       }
       ctx.globalAlpha = 1;
       // Enemy under the crosshair
@@ -158,9 +202,10 @@ const HUD = (() => {
     update(dt, g) {
       const P = g.player, view = g.viewTarget || P;
       api.drawTags(g);
-      // Timer
+      // Timers
       if (centerT > 0) { centerT -= dt; if (centerT <= 0) { E.center.style.opacity = 0; E.subcenter.style.opacity = 0; } }
       if (hitT > 0) { hitT -= dt; if (hitT <= 0) E.hitmarker.style.opacity = 0; }
+      if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) E.killbanner.classList.add('out'); }
       if (introLive >= 0 && g.mode.phase === 'live') { introLive += dt; if (introLive > 7) api.hideIntro(); }
       for (let i = feed.length - 1; i >= 0; i--) { feed[i].t -= dt; if (feed[i].t <= 0) { feed[i].el.style.opacity = 0; const el = feed[i].el; setTimeout(() => el.remove(), 600); feed.splice(i, 1); } }
 
@@ -175,6 +220,7 @@ const HUD = (() => {
       // Weapon
       const w = a.weapon, def = w ? w.def : null;
       setText('wname', def ? def.name : '');
+      setHTML('wicon', def ? Icons.svg(def.id, 'wi big') : '');
       if (def && def.mag) {
         setText('mag', String(w.mag)); setText('reserve', '/ ' + (g.infiniteAmmo ? '∞' : w.reserve));
         E.mag.classList.toggle('low', w.mag <= Math.ceil(def.mag * 0.2));
@@ -182,14 +228,14 @@ const HUD = (() => {
       else { setText('mag', '—'); setText('reserve', ''); E.mag.classList.remove('low'); }
       // Weapon bar
       const I = a.inv; const rows = [];
-      const ws = (k, n, on) => `<div class="ws${on ? ' on' : ''}"><b>${k}</b>${n}</div>`;
-      if (I.primary) rows.push(ws(1, I.primary.def.name, a.slot === 'primary'));
-      if (I.secondary) rows.push(ws(2, I.secondary.def.name, a.slot === 'secondary'));
-      rows.push(ws(3, I.knife.def.name, a.slot === 'knife'));
-      const nd = GRENADE_ORDER.filter((k) => I.nades[k] > 0).map((k) => WEAPONS[k].short + (I.nades[k] > 1 ? '×' + I.nades[k] : '')).join(' ');
-      if (nd) rows.push(ws(4, nd, a.slot === 'nade'));
-      if (I.c4) rows.push(ws(5, 'C4', a.slot === 'c4'));
-      if (I.defuser) rows.push(`<div class="ws"><b>✂</b>Defuse Kit</div>`);
+      const ws = (k, id, n, on) => `<div class="ws${on ? ' on' : ''}"><b>${k}</b>${Icons.svg(id, 'wi')}<span>${n}</span></div>`;
+      if (I.primary) rows.push(ws(1, I.primary.id, I.primary.def.name, a.slot === 'primary'));
+      if (I.secondary) rows.push(ws(2, I.secondary.id, I.secondary.def.name, a.slot === 'secondary'));
+      rows.push(ws(3, I.knife.id, I.knife.def.name, a.slot === 'knife'));
+      const nd = GRENADE_ORDER.filter((k) => I.nades[k] > 0);
+      if (nd.length) rows.push(`<div class="ws${a.slot === 'nade' ? ' on' : ''}"><b>4</b>${nd.map((k) => `${Icons.svg(k, 'wi')}${I.nades[k] > 1 ? '<small>×' + I.nades[k] + '</small>' : ''}`).join('')}</div>`);
+      if (I.c4) rows.push(ws(5, 'c4', 'C4', a.slot === 'c4'));
+      if (I.defuser) rows.push(`<div class="ws"><b>✂</b>${Icons.svg('defuser', 'wi')}<span>Defuse Kit</span></div>`);
       setHTML('weaponbar', rows.join(''));
       // Money / buy
       const md = g.mode;
@@ -204,7 +250,10 @@ const HUD = (() => {
       setText('scoreCT', String(md.score ? md.score.CT : 0)); setText('scoreT', String(md.score ? md.score.T : 0));
       const alive = (t) => g.actors.filter((x) => x.team === t).map((x) => `<i class="${x.alive ? '' : 'dead'}"></i>`).join('');
       setHTML('aliveCT', alive('CT')); setHTML('aliveT', alive('T'));
-      show('bombIcon', !!(md.bomb && md.bomb.planted && !md.bomb.exploded && !md.bomb.defused));
+      const planted = !!(md.bomb && md.bomb.planted && !md.bomb.exploded && !md.bomb.defused);
+      show('bombIcon', planted);
+      if (planted) E.bombIcon.style.setProperty('--k', clamp(md.bomb.timer / 40, 0, 1));
+      if (md.history && cache.hist !== md.history.length) { cache.hist = md.history.length; api.drawHistory(md); }
       // Crosshair
       const S = Settings.data;
       let extra = 0;
@@ -213,9 +262,11 @@ const HUD = (() => {
         const px = Math.tan(inacc) / Math.tan(g.camera.fov * 0.5 * DEG) * innerHeight * 0.5;
         extra = Math.min(60, px * 0.6);
       }
-      const hideX = !a.alive || (def && def.scope && !a.scoped) || (def && def.scope && a.scoped) || g.spectating;
+      const lightScope = def && def.scope && def.zoom && def.zoom.length === 1;
+      const hideX = !a.alive || (def && def.scope && !a.scoped) || (def && def.scope && a.scoped && !lightScope) || g.spectating;
       api.drawCrosshair(extra, hideX);
       show('scope', !!(a.alive && a.scoped && def && def.scope));
+      E.scope.classList.toggle('light', !!lightScope);
       // Progress bar (plant / defuse)
       let prog = null;
       if (a.planting) prog = ['Planting bomb…', a.plantT / 3.2];
@@ -248,10 +299,16 @@ const HUD = (() => {
       c.restore();
       const cs = Math.cos(yaw), sn = Math.sin(yaw);
       const toS = (x, z) => { const rx = x - px, rz = z - pz; return [200 + (rx * cs - rz * sn) * ppm, 200 + (rx * sn + rz * cs) * ppm]; };
-      const dot = (x, z, col, r, ring) => {
+      const dot = (x, z, col, r, ring, facing) => {
         let [sx, sy] = toS(x, z);
         const dx = sx - 200, dy = sy - 200, d = Math.hypot(dx, dy);
         if (d > 192) { sx = 200 + dx / d * 192; sy = 200 + dy / d * 192; r *= 0.75; }
+        if (facing != null && d <= 192) {
+          // View cone of a teammate
+          const fa = facing - yaw + Math.PI / 2;
+          c.beginPath(); c.moveTo(sx, sy); c.arc(sx, sy, 26, -fa - 0.5, -fa + 0.5); c.closePath();
+          c.fillStyle = col.replace(')', ',0.22)').replace('rgb', 'rgba'); c.fill();
+        }
         c.beginPath(); c.arc(sx, sy, r, 0, 7); c.fillStyle = col; c.fill();
         if (ring) { c.lineWidth = 2; c.strokeStyle = 'rgba(0,0,0,0.7)'; c.stroke(); }
       };
@@ -263,8 +320,9 @@ const HUD = (() => {
       }
       for (const o of g.actors) {
         if (o === a || !o.alive) continue;
-        if (o.team === g.player.team) dot(o.renderPos.x, o.renderPos.z, o.team === 'CT' ? '#8ab8ff' : '#ffc94d', 7, true);
-        else if (g.time - (o.spottedT || -9) < 0.6) dot(o.renderPos.x, o.renderPos.z, '#ff4a3d', 7, true);
+        if (o.team === g.player.team) dot(o.renderPos.x, o.renderPos.z, o.team === 'CT' ? 'rgb(138,184,255)' : 'rgb(255,201,77)', 7, true, o.yaw);
+        else if (g.time - (o.spottedT || -9) < 0.6) dot(o.renderPos.x, o.renderPos.z, 'rgb(255,74,61)', 7, true);
+        else if (g.time - (o.spottedT || -9) < 4) { const [sx, sy] = toS(o.renderPos.x, o.renderPos.z); c.fillStyle = 'rgba(255,74,61,0.7)'; c.font = 'bold 12px sans-serif'; c.textAlign = 'center'; c.fillText('?', sx, sy + 4); }
       }
       // Self arrow
       c.beginPath(); c.moveTo(200, 189); c.lineTo(208, 208); c.lineTo(200, 203); c.lineTo(192, 208); c.closePath();
@@ -289,19 +347,25 @@ const HUD = (() => {
       show('scoreboard', on);
       if (!on) return;
       const md = g.mode, P = g.player;
-      const row = (a) => `<tr class="${a === P ? 'me' : ''} ${a.alive ? '' : 'dead'}"><td><span class="c${a.team}">${a.name}</span>${a.inv.c4 && a.team === P.team ? ' 💣' : ''}${a.inv.defuser && a.team === P.team ? ' ✂' : ''}</td><td class="n">${a.kills}</td><td class="n">${a.assists}</td><td class="n">${a.deaths}</td><td class="n">${'★'.repeat(Math.min(a.mvp, 5))}${a.mvp > 5 ? a.mvp : ''}</td><td class="n">${a.team === P.team && !md.infiniteMoney ? '$' + a.money : ''}</td><td class="n">${a.isBot ? 'BOT' : a.ping != null ? a.ping + 'ms' : g.net ? (a === P ? 'You' : 'Player') : 'Local'}</td></tr>`;
+      const rounds = (a) => Math.max(1, md.id === 'comp' ? md.round : a.roundsPlayed || 1);
+      const row = (a) => {
+        const adr = Math.round(a.totalDmg / rounds(a));
+        const hs = a.kills > 0 ? Math.round(100 * a.hsKills / a.kills) : 0;
+        return `<tr class="${a === P ? 'me' : ''} ${a.alive ? '' : 'dead'}"><td>${a.alive && a.weapon && a.team === P.team ? Icons.svg(a.weapon.id, 'wi sb') : ''}<span class="c${a.team}">${a.name}</span>${a.inv.c4 && a.team === P.team ? ' 💣' : ''}${a.inv.defuser && a.team === P.team ? ' ✂' : ''}</td><td class="n">${a.kills}</td><td class="n">${a.assists}</td><td class="n">${a.deaths}</td><td class="n">${adr}</td><td class="n">${hs}%</td><td class="n">${'★'.repeat(Math.min(a.mvp, 5))}${a.mvp > 5 ? a.mvp : ''}</td><td class="n">${a.team === P.team && !md.infiniteMoney ? '$' + a.money : ''}</td><td class="n">${a.isBot ? 'BOT' : a.ping != null ? a.ping + 'ms' : g.net ? (a === P ? 'You' : 'Player') : 'Local'}</td></tr>`;
+      };
       const tbl = (t) => {
         const list = g.actors.filter((x) => x.team === t).sort((x, y) => y.kills - x.kills || x.deaths - y.deaths);
-        return `<h3><span class="c${t}">${t === 'CT' ? 'Defenders' : 'Attackers'}</span><span class="c${t}">${md.score ? md.score[t] : ''}</span></h3><table><tr><th>Player</th><th class="n">Kills</th><th class="n">Assists</th><th class="n">Deaths</th><th class="n">MVP</th><th class="n">Money</th><th class="n">Ping</th></tr>${list.map(row).join('')}</table>`;
+        return `<h3><span class="c${t}">${t === 'CT' ? 'Defenders' : 'Attackers'}</span><span class="c${t}">${md.score ? md.score[t] : ''}</span></h3><table><tr><th>Player</th><th class="n">K</th><th class="n">A</th><th class="n">D</th><th class="n" title="Average damage per round">ADR</th><th class="n" title="Headshot kills">HS%</th><th class="n">MVP</th><th class="n">Money</th><th class="n">Ping</th></tr>${list.map(row).join('')}</table>`;
       };
-      setHTML('scoreboard', `<div style="text-align:center;color:#a9a49a;font-size:13px;letter-spacing:2px;margin-bottom:6px">${md.title} · Sunscorch · Bot skill: ${DIFFS[g.opts.diff].label}</div>` + tbl('CT') + tbl('T'));
+      const hist = md.history && md.history.length ? `<div class="sbhist">${md.history.map((h) => `<i class="${h.winner === 'CT' ? 'ct' : 't'}${h.round === md.half ? ' half' : ''}"></i>`).join('')}</div>` : '';
+      setHTML('scoreboard', `<div class="sbtitle">${md.title} · Sunscorch · Bot skill: ${DIFFS[g.opts.diff].label}${md.toWin ? ' · First to ' + md.toWin : ''}</div>` + tbl('CT') + tbl('T') + hist);
     },
 
     // ---------------- Buy menu ----------------
     // Built once per opening (only your side's items), then only classes and labels change, so the
     // nodes under the cursor stay put and clicks are never lost to a re-render.
     openBuy(g) {
-      buyOpen = true; buyCat = -1;
+      buyOpen = true; buyCat = -1; buyHover = null;
       api.renderBuy(g);
       show('buymenu', true);
       Input.freeCursor();
@@ -319,17 +383,36 @@ const HUD = (() => {
         const d = WEAPONS[id];
         if (!d) return id === 'defuser' ? 'Defuses the bomb in 5s instead of 10s' : id === 'helmet' ? 'Body armor and a helmet against headshots' : 'Body armor';
         if (d.type === 'grenade') return id === 'he' ? 'Explosive damage' : id === 'flash' ? 'Blinds anyone looking at it' : 'Blocks vision';
-        return { pistol: 'Pistol', smg: 'SMG', rifle: 'Rifle', sniper: 'Sniper rifle' }[d.type] + ' · ' + d.mag + ' rounds';
+        const kind = { pistol: 'Pistol', smg: 'SMG', rifle: d.scope ? 'Scoped rifle' : 'Rifle', sniper: 'Sniper rifle', shotgun: 'Shotgun' }[d.type];
+        return `${kind} · ${d.mag} rounds${d.pellets ? ' · ' + d.pellets + ' pellets' : ''}`;
       };
       const cols = buyCats.map((cat, ci) => `<div class="col" data-cat="${ci}"><h4><kbd>${ci + 1}</kbd>${cat.title}</h4>` + cat.items.map((id, ii) => {
         const it = WEAPONS[id] || EQUIP[id];
-        return `<button class="it" tabindex="-1" data-buy="${id}"><kbd>${ii + 1}</kbd><span class="nm">${it.name}</span><span class="pr"></span><span class="rl">${role(id)}</span><span class="st"></span></button>`;
+        return `<button class="it" tabindex="-1" data-buy="${id}"><kbd>${ii + 1}</kbd>${Icons.svg(id, 'wi bi')}<span class="nm">${it.name}</span><span class="pr"></span><span class="rl">${role(id)}</span><span class="st"></span></button>`;
       }).join('') + '</div>').join('');
-      E.buymenu.innerHTML = `<div class="bm"><div class="bmh"><div class="t">Buy</div><div class="bt"></div><div class="m"></div><button class="x" tabindex="-1" data-close title="Close (B or Esc)">Close <kbd>B</kbd></button></div>`
-        + `<div class="cols">${cols}</div><div class="foot"></div></div>`;
-      E.bm = { cols: E.buymenu.querySelectorAll('.col'), items: E.buymenu.querySelectorAll('[data-buy]'), money: E.buymenu.querySelector('.m'), time: E.buymenu.querySelector('.bt'), foot: E.buymenu.querySelector('.foot') };
+      E.buymenu.innerHTML = `<div class="bm"><div class="bmh"><div class="t">Buy</div><div class="bt"></div><div class="m"></div>`
+        + `<button class="x" tabindex="-1" data-rebuy title="Buy what you bought last round (R)">Re-buy <kbd>R</kbd></button>`
+        + `<button class="x" tabindex="-1" data-close title="Close (B or Esc)">Close <kbd>B</kbd></button></div>`
+        + `<div class="cols">${cols}</div><div class="card" id="buyCard"></div><div class="foot"></div></div>`;
+      E.bm = { cols: E.buymenu.querySelectorAll('.col'), items: E.buymenu.querySelectorAll('[data-buy]'), money: E.buymenu.querySelector('.m'), time: E.buymenu.querySelector('.bt'), foot: E.buymenu.querySelector('.foot'), card: E.buymenu.querySelector('#buyCard'), rebuy: E.buymenu.querySelector('[data-rebuy]') };
       for (const k in cache) if (k.startsWith('bm')) delete cache[k];
       api.updateBuyState(g);
+      api.drawStatCard();
+    },
+    // Stats of the weapon under the cursor (or the one you hold), as bars the way a store page would show them
+    drawStatCard() {
+      const B = E.bm; if (!B || !game) return;
+      const P = game.player;
+      const id = buyHover || (P.weapon && P.weapon.id);
+      const def = WEAPONS[id], st = weaponStats(def);
+      if (!st) { if (cache.bmCard !== 'none') { cache.bmCard = 'none'; B.card.innerHTML = ''; B.card.classList.add('hidden'); } return; }
+      if (cache.bmCard === id) return;
+      cache.bmCard = id;
+      B.card.classList.remove('hidden');
+      const bar = (l, v, max, txt) => `<div class="stat"><span>${l}</span><div class="bar"><i style="width:${clamp(v / max * 100, 2, 100)}%"></i></div><b>${txt}</b></div>`;
+      B.card.innerHTML = `<div class="ch">${Icons.svg(id, 'wi card')}<div><div class="cn">${def.name}</div><div class="cs">${{ pistol: 'Pistol', smg: 'SMG', rifle: def.scope ? 'Scoped rifle' : 'Assault rifle', sniper: def.cycle > 1.3 ? 'Bolt-action sniper' : 'Bolt-action sniper', shotgun: 'Pump shotgun' }[def.type]} · ${def.auto ? 'Automatic' : 'Semi-automatic'} · Kill reward $${st.reward}</div></div></div>`
+        + bar('Damage', st.dmg, 120, st.dmg + (def.pellets ? ' ×' + def.pellets : '')) + bar('Fire rate', st.rpm, 900, st.rpm + ' rpm') + bar('Armor pen.', st.pen, 1, Math.round(st.pen * 100) + '%')
+        + bar('Range', st.range, 1, Math.round(st.range * 100) + '%') + bar('Magazine', st.mag, 50, st.mag + ' / ' + st.reserve) + bar('Move speed', st.speed, 250, st.speed + ' u/s');
     },
     updateBuyState(g) {
       const P = g.player, md = g.mode, B = E.bm;
@@ -338,9 +421,11 @@ const HUD = (() => {
       const bt = md.buyTimeLeft ? Math.ceil(md.buyTimeLeft()) : null;
       put('bmTime', B.time, bt == null ? '' : 'Buy time ' + fmtTime(bt));
       put('bmFoot', B.foot, buyCat < 0
-        ? 'Click an item to buy it · Quick buy: a category number, then an item number · <kbd>B</kbd> or <kbd>Esc</kbd> closes'
+        ? 'Click an item to buy it · Quick buy: a category number, then an item number · <kbd>R</kbd> buys last round’s kit again · <kbd>B</kbd> or <kbd>Esc</kbd> closes'
         : `<b>${buyCats[buyCat].title}</b>: press <kbd>1</kbd>–<kbd>${buyCats[buyCat].items.length}</kbd> to buy · <kbd>0</kbd> to go back · <kbd>B</kbd> or <kbd>Esc</kbd> closes`, true);
       B.cols.forEach((c, ci) => { const v = buyCat < 0 ? 'col' : buyCat === ci ? 'col hot' : 'col dim', k = 'bmCol' + ci; if (cache[k] !== v) { cache[k] = v; c.className = v; } });
+      const canRebuy = P.lastBuy.length > 0;
+      if (cache.bmRebuy !== canRebuy) { cache.bmRebuy = canRebuy; B.rebuy.classList.toggle('dim', !canRebuy); }
       for (const el of B.items) {
         const id = el.dataset.buy, st = g.buyState(P, id), it = WEAPONS[id] || EQUIP[id];
         let price = st.price; if (id === 'helmet' && P.armor >= 100 && !P.helmet && !md.infiniteMoney) price = 350;
@@ -358,6 +443,7 @@ const HUD = (() => {
       if (!buyOpen) return;
       if (!(g.mode.canBuy && g.mode.canBuy(g.player)) || !g.player.alive) { api.closeBuy(true); return; }
       api.updateBuyState(g);
+      if (!buyHover) api.drawStatCard();
     },
     buyKey(g, n) {
       if (buyCat < 0) { if (n >= 1 && n <= buyCats.length) { buyCat = n - 1; Sound.play('ui_click'); } return; }

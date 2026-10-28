@@ -253,6 +253,42 @@ const Tex = (() => {
       const k = 0.7 + 0.4 * a;
       o.r = 0.62 * k; o.g = 0.48 * k; o.b = 0.34 * k; o.h = a * 0.7 + b * 0.3; o.ro = 0.95;
     }],
+    // Fired clay brick (4m world, brick 0.25m x 0.08m)
+    brick: [3.0, (u, v, x, y, o) => {
+      const S = SIZE, bw = S / 16, bh = S / 50;
+      const row = Math.floor(y / bh), off = (row % 2) * bw / 2;
+      const xx = (x + off) % S, col = Math.floor(xx / bw);
+      const lx = xx % bw, ly = y % bh;
+      const chip = (vnoise(u * 96, v * 96, 96, 13) - 0.5) * 2.5;
+      const d = Math.min(lx, bw - lx, ly, bh - ly) + chip;
+      const br = hash2(col, row, 17), fine = vnoise(u * 220, v * 220, 220, 19), stain = fbm(u, v, 3, 4, 155);
+      if (d < 1.6) { const k = 0.9 + 0.2 * fine; o.r = 0.5 * k; o.g = 0.46 * k; o.b = 0.4 * k; o.h = 0.2 + fine * 0.05; o.ro = 0.97; }
+      else {
+        const bev = smoothstep(1.6, 4, d);
+        const warm = br < 0.3 ? [0.62, 0.3, 0.2] : br < 0.7 ? [0.7, 0.4, 0.27] : [0.56, 0.33, 0.24];
+        const k = (0.85 + 0.25 * hash2(col, row, 23)) * (0.94 + 0.1 * fine) * (0.82 + 0.3 * stain);
+        o.r = warm[0] * k; o.g = warm[1] * k; o.b = warm[2] * k;
+        o.h = 0.45 + 0.35 * bev + 0.06 * fine; o.ro = 0.9;
+      }
+    }],
+    // Striped canvas (market awnings), colour from the vertex tint
+    awning: [1.2, (u, v, x, y, o) => {
+      const stripe = Math.floor(u * 8) % 2 === 0;
+      const weave = (Math.sin(x * 2.4) * Math.sin(y * 2.4)) * 0.5 + 0.5, fade = fbm(u, v, 3, 3, 1600);
+      const k = (0.86 + 0.12 * weave) * (0.85 + 0.25 * fade);
+      if (stripe) { o.r = 0.86 * k; o.g = 0.84 * k; o.b = 0.78 * k; } else { o.r = 0.9 * k; o.g = 0.36 * k; o.b = 0.26 * k; }
+      o.h = weave * 0.3 + 0.3; o.ro = 0.95;
+    }],
+    // Woven rug: a border and a diamond field
+    rug: [1.0, (u, v, x, y, o) => {
+      const bx = Math.min(u, 1 - u), by = Math.min(v, 1 - v), border = Math.min(bx, by);
+      const weave = (Math.sin(x * 3.1) * Math.sin(y * 3.1)) * 0.5 + 0.5, wear = fbm(u, v, 3, 4, 1700);
+      const dia = Math.abs(((u * 6) % 1) - 0.5) + Math.abs(((v * 4) % 1) - 0.5) < 0.42;
+      let c;
+      if (border < 0.06) c = [0.55, 0.12, 0.1]; else if (border < 0.09) c = [0.85, 0.72, 0.4]; else c = dia ? [0.62, 0.15, 0.12] : [0.2, 0.22, 0.4];
+      const k = (0.85 + 0.15 * weave) * (0.8 + 0.3 * wear);
+      o.r = c[0] * k; o.g = c[1] * k; o.b = c[2] * k; o.h = weave * 0.3; o.ro = 0.98;
+    }],
     // Sandbag cloth
     sackcloth: [2.0, (u, v, x, y, o) => {
       const weave = (Math.sin(x * 1.6) * Math.sin(y * 1.6)) * 0.5 + 0.5;
@@ -414,7 +450,38 @@ const Tex = (() => {
     });
     // A / B site spray paint
     S.siteA = paintLetter('A'); S.siteB = paintLetter('B');
+    S.posters = [0, 1, 2].map(poster);
+    S.stain = canvasTex(128, (g, s) => {
+      const id = g.createImageData(s, s);
+      for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+        const r = Math.hypot(x - 64, y - 64) / 64, n = fbm(x / s, y / s, 5, 4, 909);
+        const a = clamp((1 - r * (0.8 + n * 0.6)) * 1.4, 0, 1) * (0.5 + n * 0.5);
+        const k = (y * s + x) * 4; id.data[k] = 24; id.data[k + 1] = 20; id.data[k + 2] = 16; id.data[k + 3] = a * 190;
+      }
+      g.putImageData(id, 0, 0);
+    });
     return S;
+  }
+  // Torn, sun-bleached posters: a coloured field, a headline bar and a few lines of 'text'
+  function poster(i) {
+    return canvasTex(256, (g, s) => {
+      const pal = [['#c9402f', '#f2e4c8'], ['#2b5a8a', '#e8e1cf'], ['#d6a63a', '#2a2420']][i];
+      g.fillStyle = pal[0]; g.fillRect(0, 0, s, s);
+      g.fillStyle = pal[1]; g.fillRect(18, 22, s - 36, 42);
+      g.fillStyle = pal[0]; for (let k = 0; k < 4; k++) g.fillRect(28, 32 + k * 8, 120 + (k * 37) % 70, 4);
+      g.fillStyle = pal[1]; for (let k = 0; k < 9; k++) g.fillRect(24, 90 + k * 14, 60 + (k * 53) % 150, 5);
+      g.fillStyle = pal[1]; g.beginPath(); g.arc(190, 180, 38, 0, 7); g.fill();
+      g.fillStyle = pal[0]; g.beginPath(); g.arc(190, 180, 24, 0, 7); g.fill();
+      // bleaching and tears
+      const id = g.getImageData(0, 0, s, s);
+      for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+        const k = (y * s + x) * 4, n = fbm(x / s, y / s, 3, 4, 2000 + i), e = Math.min(x, s - x, y, s - y);
+        const bleach = 0.6 + 0.5 * n;
+        id.data[k] = Math.min(255, id.data[k] * bleach + 40 * n); id.data[k + 1] = Math.min(255, id.data[k + 1] * bleach + 40 * n); id.data[k + 2] = Math.min(255, id.data[k + 2] * bleach + 30 * n);
+        if (e < 14 && fbm(x / s, y / s, 9, 2, 3000 + i) > 0.56) id.data[k + 3] = 0;
+      }
+      g.putImageData(id, 0, 0);
+    });
   }
   function paintLetter(ch) {
     return canvasTex(256, (g, s) => {

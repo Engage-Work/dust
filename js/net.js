@@ -470,7 +470,7 @@ class ModeMirror {
 // ======================================================================
 //  Lobby (the "Multiplayer" panel in the main menu)
 // ======================================================================
-const NAME_KEY = 'sandstorm_fps_netname';
+const NAME_KEY = 'dustline_netname';
 // Launched from Engage into a match: `#play=<base64url JSON {ws, role, name}>`. The ws URL already
 // carries a short-lived room ticket from the Engage games relay, which speaks server.js's protocol.
 const EngagePlay = (() => {

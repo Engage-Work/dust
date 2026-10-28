@@ -274,6 +274,9 @@ class BotBrain {
       this.counterStrafe(c);
       return;
     }
+    if (def.scope && !a.scoped && dist > 18 && this.g.time > a.nextFire - 0.1 && !a.reloading && Math.random() < dt * 4) c.attack2Pressed = true;
+    // Shotguns close the distance
+    if (def.type === 'shotgun' && dist > 9) { c.fwd = 1; c.side = 0; return; }
     if (def.type === 'knife' || def.type === 'grenade' || def.type === 'c4') {
       if (a.inv.primary || a.inv.secondary) c.slotReq = a.bestSlot();
       else { c.fwd = 1; c.side = 0; }
@@ -341,7 +344,8 @@ class BotBrain {
     const tol = Math.atan2(rad, dist) * (1.3 + (1 - this.d.stopShoot) * 1.5) + 0.004;
     const hs = a.hspeed();
     const accurate = hs <= def.speed * 0.36 || dist < 7 || (def.type === 'smg' && hs < def.speed * 0.7) || Math.random() > this.d.stopShoot;
-    if (def.scope && !a.scoped && dist > 7) return;
+    if (def.scope && !a.scoped && dist > 7 && def.type === 'sniper') return;
+    if (def.type === 'shotgun' && dist > 22) return;
     if (err > tol || !accurate) return;
     if (g.teammateInLine(a, eye, p)) return;
     if (def.auto) {

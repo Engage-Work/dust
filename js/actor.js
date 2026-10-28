@@ -32,6 +32,8 @@ class Actor {
     this.stamina = 0; this.velMod = 1; this.landInacc = 0; this.stepOffset = 0; this.stepDist = 0;
     this.hp = 100; this.armor = 0; this.helmet = false; this.alive = false;
     this.money = 800; this.kills = 0; this.deaths = 0; this.assists = 0; this.mvp = 0; this.roundKills = 0; this.damageBy = new Map();
+    // Damage you dealt this round, per victim (the death summary and ADR read these)
+    this.dmgOut = new Map(); this.totalDmg = 0; this.hsKills = 0; this.roundsPlayed = 0; this.lastBuy = [];
     this.inv = { primary: null, secondary: null, knife: new WeaponInst(this.isPlayer ? (Settings.data.knife === 'knife' ? 'knife' : 'butterfly') : this.remote ? (o.knife === 'knife' ? 'knife' : 'butterfly') : (Math.random() < 0.3 ? 'butterfly' : 'knife')), nades: { he: 0, flash: 0, smoke: 0 }, c4: false, defuser: false };
     this.slot = 'knife'; this.lastSlot = 'knife'; this.weapon = this.inv.knife; this.nadeId = 'he';
     this.drawEnd = 0; this.nextFire = 0; this.reloadEnd = 0; this.reloading = false;
@@ -445,9 +447,16 @@ class Actor {
     this.zoomT += dt;
     if (now < this.drawEnd) return;
     if (this.reloading && now >= this.reloadEnd) {
-      const need = def.mag - w.mag, take = g.infiniteAmmo ? need : Math.min(need, w.reserve);
-      w.mag += take; if (!g.infiniteAmmo) w.reserve -= take;
-      this.reloading = false;
+      if (def.shellReload) {
+        // Shotgun: one shell per cycle, then another unless the tube is full, the reserve is out or a shot interrupted it
+        w.mag++; if (!g.infiniteAmmo) w.reserve--;
+        if (w.mag < def.mag && (w.reserve > 0 || g.infiniteAmmo) && !this.reloadStop) { this.reloadEnd = now + def.shellReload; this.events.push({ t: 'shell', dur: def.shellReload }); }
+        else { this.reloading = false; this.events.push({ t: 'reloadend' }); }
+      } else {
+        const need = def.mag - w.mag, take = g.infiniteAmmo ? need : Math.min(need, w.reserve);
+        w.mag += take; if (!g.infiniteAmmo) w.reserve -= take;
+        this.reloading = false;
+      }
     }
     if (this.rezoom && now >= this.nextFire - 0.05 && !this.reloading) { this.scoped = this.rezoom; this.rezoom = 0; this.zoomT = 0; }
     const type = def.type;
@@ -457,9 +466,11 @@ class Actor {
     if (c.inspect && !this.reloading && now >= this.nextFire) { c.inspect = false; this.events.push({ t: 'inspect' }); }
     if ((c.reload || (w.mag === 0 && c.attackPressed)) && !this.reloading && w.mag < def.mag && (w.reserve > 0 || g.infiniteAmmo)) this.startReload();
     if (c.attack2Pressed && def.scope && !this.reloading) {
-      this.scoped = (this.scoped + 1) % 3; this.rezoom = 0; this.zoomT = 0;
+      this.scoped = (this.scoped + 1) % (def.zoom.length + 1); this.rezoom = 0; this.zoomT = 0;
       this.sfx('dry', 0.25, 1.6);
     }
+    // A shotgun mid-reload can still fire what it has loaded: the shot ends the reload
+    if (this.reloading && def.shellReload && c.attackPressed && w.mag > 0 && now >= this.nextFire && !g.noFire) { this.reloading = false; this.reloadStop = false; this.events.push({ t: 'reloadend' }); }
     const canFire = !this.reloading && now >= this.nextFire && this.sprintRecover <= 0 && !this.sprinting && !g.noFire;
     const trigger = def.auto ? c.attack : c.attackPressed;
     if (trigger && canFire) {
@@ -492,19 +503,30 @@ class Actor {
     if (def.scope && this.scoped) { this.rezoom = this.scoped; this.scoped = 0; }
     const eye = this.eyePos(this._t.b);
     if (g.net && g.net.host) g.net.emit({ t: 'shot', a: this.id, o: nv(eye), d: nv(dir), w: def.id });
+    const shoot = () => {
+      if (!def.pellets) return g.fireBullet(this, eye, dir, def);
+      // Shotgun: a cone of pellets around the aim direction, each its own bullet with the weapon's base damage
+      const r = _v3.set(Math.cos(by), 0, -Math.sin(by)), u = _v2.crossVectors(r, dir).normalize();
+      for (let i = 0; i < def.pellets; i++) {
+        const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * def.spread / 1000;
+        const d = this._t.c.copy(dir).addScaledVector(r, Math.cos(a) * rr).addScaledVector(u, Math.sin(a) * rr).normalize();
+        g.fireBullet(this, eye, d, def, i > 0);
+      }
+    };
     // Remote player fires: hit-test against the position seen on the peer's screen (lag compensation)
-    if (this.remote && g.net) g.net.rewind(this, () => g.fireBullet(this, eye, dir, def));
-    else g.fireBullet(this, eye, dir, def);
+    if (this.remote && g.net) g.net.rewind(this, shoot);
+    else shoot();
     g.weaponFired(this, def);
     this.events.push({ t: 'fire', id: def.id, empty: w.mag === 0 });
   }
 
   startReload() {
     const def = this.def;
-    this.reloading = true;
-    this.reloadEnd = this.game.time + def.reload;
+    this.reloading = true; this.reloadStop = false;
+    this.reloadEnd = this.game.time + (def.shellReload ? def.shellReload + 0.3 : def.reload);
     this.scoped = 0; this.rezoom = 0;
-    this.events.push({ t: 'reload', dur: def.reload, empty: this.weapon.mag === 0, id: def.id });
+    this.events.push({ t: 'reload', dur: def.reload, empty: this.weapon.mag === 0, id: def.id, shells: !!def.shellReload });
+    if (def.shellReload) { this.events.push({ t: 'shell', dur: def.shellReload + 0.3 }); this.game.noise(this, this.pos, 10); return; }
     const mo = { vol: 0.6, ref: 2, roll: 1.5, delay: def.reload * 0.2, maxDist: 20, src: this.id }, mi = Object.assign({}, mo, { delay: def.reload * 0.62 });
     if (!this.isPlayer) { this.game.playAt('magout', this.pos, mo); this.game.playAt('magin', this.pos, mi); }
     else { this.game.emitSnd('magout', this.pos, mo); this.game.emitSnd('magin', this.pos, mi); }

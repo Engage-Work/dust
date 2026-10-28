@@ -3,6 +3,12 @@
 //  main.js -- engine bootstrap: renderer, sky/lighting/environment map, post-processing,
 //              menus and settings, main loop (128 tick fixed step + interpolated rendering)
 // ======================================================================
+// Time of day: sun angle, sky, fog and exposure. Picked on the main menu; the match keeps it.
+const DAYLIGHT = {
+  noon: { label: 'Noon', el: 34, az: 215, sun: 0xffe4c0, sunI: 3.4, hemi: 0.12, hemiSky: 0xb9cfff, hemiGround: 0x9b7e5c, turbidity: 4.2, rayleigh: 1.9, mie: 0.004, exposure: 0.5, env: 0.42, fog: [0.86, 0.8, 0.7], fogD: 0.0032, ground: [0.4, 0.31, 0.2], vm: [0xffe0b4, 2.4, 0xd9d6cf, 0x8f7454] },
+  dawn: { label: 'Dawn', el: 14, az: 110, sun: 0xffc98f, sunI: 2.7, hemi: 0.17, hemiSky: 0xc7b9ee, hemiGround: 0x7d5c42, turbidity: 6.5, rayleigh: 2.4, mie: 0.011, exposure: 0.56, env: 0.4, fog: [0.9, 0.76, 0.64], fogD: 0.0046, ground: [0.37, 0.27, 0.19], vm: [0xffcf9c, 2.0, 0xd6cde6, 0x7d5c42] },
+  dusk: { label: 'Dusk', el: 9, az: 262, sun: 0xff9d52, sunI: 2.5, hemi: 0.15, hemiSky: 0x9f8ed4, hemiGround: 0x6b4832, turbidity: 9, rayleigh: 3.1, mie: 0.02, exposure: 0.57, env: 0.37, fog: [0.82, 0.6, 0.52], fogD: 0.0042, ground: [0.35, 0.24, 0.17], vm: [0xffb078, 1.9, 0xb9aed6, 0x6b4832] },
+};
 const QUALITY = {
   low:    { label: 'Low',   pr: 0.75, shadow: 1024, msaa: 0, bloom: false, fxaa: true },
   medium: { label: 'Medium',   pr: 1.0,  shadow: 2048, msaa: 0, bloom: true,  fxaa: true },
@@ -58,7 +64,7 @@ const FinalShader = {
 
 const Engine = {
   game: null, paused: false, forceRun: false, menuT: 0,
-  opts: { mode: 'comp', team: 'CT', diff: 'normal', size: 5, ff: false },
+  opts: { mode: 'comp', team: 'CT', diff: 'normal', size: 5, ff: false, toWin: 9, time: 'noon' },
 
   progress(p, msg) { $('loadBar').style.width = (p * 100).toFixed(0) + '%'; if (msg) $('loadText').textContent = msg; },
   async step(p, msg) { this.progress(p, msg); await new Promise((r) => setTimeout(r, 16)); },
@@ -92,6 +98,7 @@ const Engine = {
     scene.add(cam);
 
     await Tex.init(S.quality, (p, m) => this.progress(0.04 + p * 0.36, m));
+    this.opts.time = DAYLIGHT[S.timeOfDay] ? S.timeOfDay : 'noon';
     await this.step(0.42, 'Building map "Sunscorch"');
     this.world = new World();
     this.map = MapGen.build(this.world, scene, (p, m) => this.progress(0.42 + p * 0.4, m));
@@ -122,15 +129,17 @@ const Engine = {
     this.resize();
     $('loading').classList.add('hidden');
     $('menu').classList.remove('hidden');
-    $('verLabel').textContent = `v${VERSION} · Burst sliding · Classic FPS movement · 128 tick · LAN multiplayer`;
+    $('verLabel').textContent = `v${VERSION} · 24 weapons · Burst sliding · 128 tick · Play together in Engage`;
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   },
 
   setupSky() {
-    const scene = this.scene, el = 34 * DEG, az = 215 * DEG;
+    const scene = this.scene;
+    const D = DAYLIGHT[this.opts.time] || DAYLIGHT.noon;
+    const el = D.el * DEG, az = D.az * DEG;
     const sunDir = this.sunDir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).normalize();
-    const L = this.light = { exposure: 0.5, env: 0.42, sun: 3.4, hemi: 0.12, turbidity: 4.2, rayleigh: 1.9, mie: 0.004, ground: [0.4, 0.31, 0.2] };
+    const L = this.light = { exposure: D.exposure, env: D.env, sun: D.sunI, hemi: D.hemi, turbidity: D.turbidity, rayleigh: D.rayleigh, mie: D.mie, ground: D.ground };
     const mkSky = (scale, envScale) => {
       const s = new THREE.Sky(); s.scale.setScalar(scale);
       if (envScale != null) {
@@ -145,19 +154,66 @@ const Engine = {
     };
     this.mkSky = mkSky;
     this.sky = mkSky(5000); scene.add(this.sky);
-    const sun = this.sun = new THREE.DirectionalLight(0xffe4c0, 3.1);
+    const sun = this.sun = new THREE.DirectionalLight(D.sun, 3.1);
     sun.intensity = L.sun;
     sun.position.copy(sunDir).multiplyScalar(160); sun.target.position.set(0, 0, 0);
     scene.add(sun); scene.add(sun.target);
     sun.castShadow = true;
-    const sc = sun.shadow.camera; sc.left = -74; sc.right = 74; sc.top = 74; sc.bottom = -74; sc.near = 20; sc.far = 340;
+    // The shadow box follows the camera (see followSun), so it can be small and the shadows sharp
+    const sc = sun.shadow.camera; sc.left = -46; sc.right = 46; sc.top = 46; sc.bottom = -46; sc.near = 20; sc.far = 340;
     sc.layers.enable(1);
     const Q = QUALITY[Settings.data.quality] || QUALITY.high;
     sun.shadow.mapSize.set(Q.shadow, Q.shadow);
-    sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.04;
-    this.hemi = new THREE.HemisphereLight(0xb9cfff, 0x9b7e5c, L.hemi); scene.add(this.hemi);
-    scene.fog = new THREE.FogExp2(new THREE.Color(0.86, 0.8, 0.7), 0.0032);
+    sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.03;
+    this.hemi = new THREE.HemisphereLight(D.hemiSky, D.hemiGround, L.hemi); scene.add(this.hemi);
+    scene.fog = new THREE.FogExp2(new THREE.Color(D.fog[0], D.fog[1], D.fog[2]), D.fogD);
     this.bakeEnv();
+    this.flare = { el: $('flare'), sun: $('flareSun'), g: [$('flareG1'), $('flareG2'), $('flareG3')], vis: 0, t: 0 };
+  },
+  // Switch the time of day in place: sun, sky, fog, environment map and the viewmodel's lights
+  applyDaylight(key) {
+    const D = DAYLIGHT[key] || DAYLIGHT.noon;
+    this.opts.time = D === DAYLIGHT[key] ? key : 'noon';
+    const el = D.el * DEG, az = D.az * DEG;
+    this.sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).normalize();
+    this.sky.material.uniforms.sunPosition.value.copy(this.sunDir);
+    Object.assign(this.light, { exposure: D.exposure, env: D.env, sun: D.sunI, hemi: D.hemi, turbidity: D.turbidity, rayleigh: D.rayleigh, mie: D.mie, ground: D.ground });
+    this.sun.color.set(D.sun);
+    this.hemi.color.set(D.hemiSky); this.hemi.groundColor.set(D.hemiGround);
+    this.scene.fog.color.setRGB(D.fog[0], D.fog[1], D.fog[2]); this.scene.fog.density = D.fogD;
+    Effects.setFog(this.scene.fog.color, D.fogD);
+    this.bakeEnv();
+    this.vm.setLight(D.vm[0], D.vm[1], D.vm[2], D.vm[3]);
+    this.vm.setEnv(this.scene.environment, this.sunDir);
+  },
+  // Keep the shadow frustum centred a little ahead of the camera, snapped to a grid so edges don't crawl
+  followSun() {
+    const cam = this.camera, sun = this.sun, t = sun.target.position;
+    const f = _v1.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const snap = 2.0;
+    t.set(Math.round((cam.position.x + f.x * 18) / snap) * snap, 0, Math.round((cam.position.z + f.z * 18) / snap) * snap);
+    sun.position.copy(t).addScaledVector(this.sunDir, 160);
+  },
+  // Sun disc and ghost flares as DOM elements placed by projecting the sun; occlusion from the world raycast
+  updateFlare(dt, sunVis) {
+    const F = this.flare; if (!F || !F.el) return;
+    if (!Settings.data.lensFlare || !this.game) { F.el.style.opacity = 0; return; }
+    const cam = this.camera;
+    const v = _v2.copy(cam.position).addScaledVector(this.sunDir, 500).project(cam);
+    let a = 0;
+    if (v.z < 1 && Math.abs(v.x) < 1.0 && Math.abs(v.y) < 1.0) {
+      // Fades in as the sun disc itself comes on screen, so ghosts never appear without it
+      const edge = clamp(1.0 - Math.max(Math.abs(v.x), Math.abs(v.y)), 0, 0.2) / 0.2;
+      a = edge * sunVis;
+    }
+    F.vis = damp(F.vis, a, 10, dt);
+    F.el.style.opacity = F.vis.toFixed(3);
+    if (F.vis < 0.01) return;
+    const sx = (v.x * 0.5 + 0.5) * innerWidth, sy = (-v.y * 0.5 + 0.5) * innerHeight;
+    const cx = innerWidth / 2, cy = innerHeight / 2;
+    F.sun.style.transform = `translate(${sx.toFixed(0)}px, ${sy.toFixed(0)}px)`;
+    const ks = [-0.35, 0.45, 0.85];
+    for (let i = 0; i < 3; i++) { const k = ks[i]; F.g[i].style.transform = `translate(${(cx + (cx - sx) * k).toFixed(0)}px, ${(cy + (cy - sy) * k).toFixed(0)}px)`; }
   },
   // Environment map (sky + sand bounce), brightness adjustable
   bakeEnv() {
@@ -175,6 +231,7 @@ const Engine = {
     this.envRT = rt;
     scene.environment = rt.texture;
     if (this.vm) this.vm.setEnv(rt.texture, this.sunDir);
+    if (this.map && this.map.setEnvIntensity) this.map.setEnvIntensity(L.env / 0.42);
     pm.dispose();
     this.sun.intensity = L.sun; this.hemi.intensity = L.hemi;
     if (this.final) this.final.uniforms.exposure.value = L.exposure;
@@ -226,7 +283,7 @@ const Engine = {
   },
   warmup() {
     // Pre-build models & compile shaders to avoid a first-frame hitch
-    for (const id of ['ak47', 'm4a4', 'awp', 'deagle', 'usp', 'glock', 'mp9', 'knife', 'butterfly', 'he', 'flash', 'smoke', 'c4']) { this.vm.model(id); Models.thirdPerson(id); }
+    for (const id in WEAPONS) { this.vm.model(id); Models.thirdPerson(id); Models.magModel(id); }
     const tmp = [new Models.Humanoid('CT'), new Models.Humanoid('T')];
     tmp.forEach((h, i) => { h.setWeapon(i ? 'ak47' : 'm4a4'); h.root.position.set(0, -50, 0); this.scene.add(h.root); });
     for (const id in this.vm.models) { this.vm.root.add(this.vm.models[id].group); }
@@ -243,6 +300,7 @@ const Engine = {
     Effects.clearAll();
     const opts = Object.assign({}, this.opts, net ? net.opts : {});
     if (net) { opts.net = net.ctx; $('lobby').classList.add('hidden'); }
+    if (opts.time !== this.opts.time || !this._lit) { this._lit = true; this.applyDaylight(opts.time); }
     this.game = new Game(this, opts);
     HUD.bind(this.game);
     if (!HUD.introSeen(this.game.mode.id)) HUD.showIntro(this.game);
@@ -305,6 +363,8 @@ const Engine = {
         if (!this.paused && !this.forceRun) $('clickToPlay').classList.remove('hidden');
       }
       const P = g.player, fx = Settings.data.motionFx !== false;
+      this.followSun();
+      this.updateFlare(dt, g._sunVis == null ? 1 : g._sunVis);
       fu.flash.value = g.flashAmt;
       fu.damage.value = g.dmgFlash;
       fu.lowhp.value = P.alive && P.hp <= 25 ? 0.6 + 0.4 * Math.sin(now / 300) : 0;
@@ -318,6 +378,8 @@ const Engine = {
       cam.position.set(Math.cos(t) * 34, 15 + Math.sin(t * 2.3) * 2.5, Math.sin(t) * 34 - 4);
       cam.lookAt(0, 1.5, -6);
       cam.fov = 60; cam.updateProjectionMatrix();
+      this.followSun();
+      this.updateFlare(dt, 0);
       Effects.update(dt, cam);
       fu.flash.value = 0; fu.damage.value = 0; fu.lowhp.value = 0; fu.blur.value = 0; fu.vignette.value = 0.35;
     }
@@ -359,7 +421,11 @@ const Engine = {
         Sound.init(); Sound.play('ui_click');
       }));
     };
-    seg('optTeam', 'team'); seg('optDiff', 'diff'); seg('optSize', 'size', Number);
+    seg('optTeam', 'team'); seg('optDiff', 'diff'); seg('optSize', 'size', Number); seg('optRounds', 'toWin', Number); seg('optFF', 'ff', (v) => v === '1');
+    seg('optTime', 'time');
+    $('optTime').querySelectorAll('b').forEach((b) => b.addEventListener('click', () => { Settings.data.timeOfDay = b.dataset.v; Settings.save(); if (!self.game) self.applyDaylight(b.dataset.v); }));
+    // Restore the saved time of day on the segmented control
+    $('optTime').querySelectorAll('b').forEach((b) => b.classList.toggle('on', b.dataset.v === self.opts.time));
     document.querySelectorAll('#modeCards .card').forEach((c) => c.addEventListener('click', () => {
       document.querySelectorAll('#modeCards .card').forEach((x) => x.classList.remove('active')); c.classList.add('active');
       self.opts.mode = c.dataset.mode; self.updatePlaySub(); Sound.init(); Sound.play('ui_click');
@@ -407,8 +473,10 @@ const Engine = {
   updatePlaySub() {
     const o = this.opts;
     const mode = { comp: 'Demolition', tdm: 'Team Deathmatch', range: 'Firing Range' }[o.mode];
-    $('playSub').textContent = o.mode === 'range' ? mode + ' · solo practice'
-      : `${mode} · ${o.team === 'CT' ? 'Defenders' : 'Attackers'} · ${o.size}v${o.size} · ${(DIFFS[o.diff] || DIFFS.normal).label} bots`;
+    const day = (DAYLIGHT[o.time] || DAYLIGHT.noon).label;
+    $('playSub').textContent = o.mode === 'range' ? `${mode} · solo practice · ${day}`
+      : `${mode} · ${o.team === 'CT' ? 'Defenders' : 'Attackers'} · ${o.size}v${o.size} · ${(DIFFS[o.diff] || DIFFS.normal).label} bots${o.mode === 'comp' ? ' · first to ' + o.toWin : ''} · ${day}`;
+    document.querySelectorAll('.comp-only').forEach((el) => el.classList.toggle('hidden', o.mode !== 'comp'));
   },
   openSettings() { $('settings').classList.remove('hidden'); this.renderSettings(); },
   SETTINGS_UI: {
@@ -430,8 +498,11 @@ const Engine = {
       { k: 'crossThick', l: 'Thickness', t: 'range', min: 1, max: 6, step: 0.5 },
       { k: 'crossColor', l: 'Color', t: 'color' },
       { k: 'crossDot', l: 'Center dot', t: 'bool' },
+      { k: 'crossT', l: 'T-style (no top line)', t: 'bool' },
       { k: 'crossOutline', l: 'Black outline', t: 'bool' },
       { k: 'hitmarker', l: 'Hit marker', t: 'bool' },
+      { k: 'damageNumbers', l: 'Damage numbers', t: 'bool', d: 'Shows the damage of each hit where it landed' },
+      { k: 'killBanner', l: 'Kill banner', t: 'bool', d: 'A short confirmation under the crosshair after a kill' },
     ],
     vm: [
       { k: 'vmFov', l: 'Viewmodel FOV', t: 'range', min: 54, max: 68, step: 1 },
@@ -444,6 +515,7 @@ const Engine = {
       { k: 'quality', l: 'Quality preset', t: 'select', o: [['low', 'Low (integrated GPUs)'], ['medium', 'Medium'], ['high', 'High (MSAA + 4K shadows)'], ['ultra', 'Ultra (native hi-DPI resolution)']], d: 'Texture resolution changes apply after you refresh the page' },
       { k: 'renderScale', l: 'Render scale', t: 'range', min: 0.5, max: 1, step: 0.05 },
       { k: 'motionFx', l: 'Camera effects (vignette, grain, aberration, shake)', t: 'bool' },
+      { k: 'lensFlare', l: 'Sun flare', t: 'bool' },
       { k: 'showFps', l: 'Show FPS / speed', t: 'bool' },
     ],
     audio: [

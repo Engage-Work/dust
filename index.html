@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sandstorm</title>
+<title>Dustline</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2712%27 fill=%27%23171411%27/%3E%3Cpath d=%27M10 40h44v4H10z%27 fill=%27%23ffb43a%27/%3E%3Cpath d=%27M14 22h8l4 10h20l4-10h4v14H10V22z%27 fill=%27%23e6d2a8%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -16,6 +17,9 @@
   <div id="scope" class="hidden"><div class="ring"></div><div class="lh"></div><div class="lv"></div></div>
   <div id="hitmarker"></div>
   <div id="dmgdir"></div>
+  <div id="dmgnums"></div>
+  <div id="killbanner" class="hidden"></div>
+  <div id="flare"><i id="flareSun"></i><i id="flareG1"></i><i id="flareG2"></i><i id="flareG3"></i></div>
 
   <div id="topleft">
     <div id="radarWrap"><canvas id="radar" width="400" height="400"></canvas><div id="radarLabel"></div></div>
@@ -25,10 +29,11 @@
 
   <div id="topbar">
     <div class="side ct"><div class="alive" id="aliveCT"></div><div class="score" id="scoreCT">0</div></div>
-    <div id="timerBox"><div id="timer">1:55</div><div id="bombIcon" class="hidden">C4</div></div>
+    <div id="timerBox"><div id="timer">1:55</div><div id="bombIcon" class="hidden"><i></i><span>C4</span></div></div>
     <div class="side t"><div class="score" id="scoreT">0</div><div class="alive" id="aliveT"></div></div>
   </div>
 
+  <div id="roundhist"></div>
   <div id="killfeed"></div>
   <div id="center"></div>
   <div id="subcenter"></div>
@@ -39,7 +44,7 @@
   </div>
 
   <div id="weaponbar"></div>
-  <div id="ammobox"><div id="wname">AK-47</div><div><span id="mag">30</span><span id="reserve">/ 90</span></div></div>
+  <div id="ammobox"><div id="wicon"></div><div id="wname">AK-47</div><div><span id="mag">30</span><span id="reserve">/ 90</span></div></div>
 
   <div id="progress" class="hidden"><div class="label" id="progressLabel">Planting the bomb</div><div class="bar"><i id="progressBar"></i></div></div>
   <div id="netgraph"></div>
@@ -55,9 +60,9 @@
 <div id="menu" class="hidden">
   <div class="menu-inner">
     <div class="brand">
-      <div class="logo">SANDSTORM</div>
+      <div class="logo">DUSTLINE</div>
       <div class="sub">Tactical shooter for the web</div>
-      <div class="edition">Engage Edition</div>
+      <div class="edition">Engage Edition · formerly Sandstorm</div>
     </div>
     <div class="cards" id="modeCards">
       <div class="card active" data-mode="comp">
@@ -74,6 +79,9 @@
       <div class="opt"><label>Side</label><div class="seg" id="optTeam"><b data-v="CT" class="on">Defenders</b><b data-v="T">Attackers</b></div></div>
       <div class="opt"><label>Bot skill</label><div class="seg" id="optDiff"><b data-v="easy">Recruit</b><b data-v="normal" class="on">Veteran</b><b data-v="hard">Elite</b><b data-v="cosmic">Cosmic</b></div></div>
       <div class="opt"><label>Team size</label><div class="seg" id="optSize"><b data-v="1">1</b><b data-v="2">2</b><b data-v="3">3</b><b data-v="4">4</b><b data-v="5" class="on">5</b></div></div>
+      <div class="opt comp-only"><label>Match</label><div class="seg" id="optRounds"><b data-v="9" class="on">First to 9</b><b data-v="13">First to 13</b><b data-v="16">First to 16</b></div></div>
+      <div class="opt comp-only"><label>Friendly fire</label><div class="seg" id="optFF"><b data-v="0" class="on">Off</b><b data-v="1">On</b></div></div>
+      <div class="opt"><label>Time of day</label><div class="seg" id="optTime"><b data-v="noon" class="on">Noon</b><b data-v="dawn">Dawn</b><b data-v="dusk">Dusk</b></div></div>
     </div>
     <div class="actions">
       <button id="btnStart" class="primary play"><span class="pl">Play</span><span class="ps" id="playSub">Demolition vs bots</span></button>
@@ -139,7 +147,7 @@
       <div><kbd>Ctrl</kbd> or <kbd>C</kbd> Crouch</div><div><kbd>R</kbd> Reload &nbsp; <kbd>F</kbd> Inspect</div>
       <div><b>Sprinting + <kbd>C</kbd>/<kbd>Ctrl</kbd> = Slide</b></div><div><kbd>1-5</kbd> Select weapon &nbsp; <kbd>Q</kbd> Quick-swap</div>
       <div><kbd>Space</kbd> Jump (jump out of a slide to keep momentum)</div><div><kbd>E</kbd> Pick up / plant / defuse</div>
-      <div><kbd>B</kbd> Buy menu</div><div><kbd>G</kbd> Drop weapon</div>
+      <div><kbd>B</kbd> Buy menu &nbsp; <kbd>R</kbd> in the menu re-buys last round&rsquo;s kit</div><div><kbd>G</kbd> Drop weapon</div>
       <div><kbd>Tab</kbd> Scoreboard</div><div><kbd>Esc</kbd> Pause</div>
     </div>
     <div class="helptext">
@@ -153,7 +161,7 @@
 
 <!-- ============ Loading ============ -->
 <div id="loading">
-  <div class="logo">SANDSTORM</div>
+  <div class="logo">DUSTLINE</div>
   <div class="lbar"><i id="loadBar"></i></div>
   <div class="ltext" id="loadText">Initializing…</div>
 </div>
@@ -178,6 +186,7 @@
 <script src="js/map.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/weapons.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/models.js"></script>
 <script src="js/effects.js"></script>
 <script src="js/ragdoll.js"></script>
