@@ -12,7 +12,7 @@ const HUD = (() => {
   const feed = [];
   let buyOpen = false, buyCat = -1, buyCats = [], buyHover = null;
   let centerT = 0, hitT = 0, introLive = -1, introMode = '', bannerT = 0;
-  const INTRO_KEY = 'dustline_seen_intro_';
+  const INTRO_KEY = 'dust_seen_intro_';
 
   function setText(id, v) { if (cache[id] !== v) { cache[id] = v; E[id].textContent = v; } }
   function setHTML(id, v) { if (cache['h' + id] !== v) { cache['h' + id] = v; E[id].innerHTML = v; } }

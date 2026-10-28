@@ -165,7 +165,7 @@ function lanIPs() {
 function ensureFirewall() {
   if (process.platform !== 'win32' || !process.argv.includes('--firewall')) return;
   const { execFileSync, spawnSync } = require('child_process');
-  const name = 'DustlineLAN-' + PORT;
+  const name = 'DustLAN-' + PORT;
   const has = () => { try { execFileSync('netsh', ['advfirewall', 'firewall', 'show', 'rule', 'name=' + name], { stdio: 'ignore' }); return true; } catch (e) { return false; } };
   if (has()) return;
   console.log(`\n  First run: TCP port ${PORT} must be opened in the firewall so your friends can connect.\n  An administrator prompt is about to appear. Click "Yes".`);
@@ -182,7 +182,7 @@ server.on('error', (e) => {
 });
 server.listen(PORT, '0.0.0.0', () => {
   const ips = lanIPs();
-  console.log('\n  DUSTLINE · LAN server started\n');
+  console.log('\n  DUST · LAN server started\n');
   console.log(`  On this computer:  http://localhost:${PORT}`);
   for (const ip of ips) console.log(`  On your network:   http://${ip}:${PORT}`);
   if (!ips.length) console.log('  (No LAN address found: make sure you are connected to WiFi)');

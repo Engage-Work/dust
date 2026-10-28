@@ -1,12 +1,12 @@
-# DUSTLINE
+# DUST
 
 A tactical shooter for the web, built to feel like the classic 5v5 defusal games: realistic gunplay, a 24-weapon buy menu, a full economy, and burst sliding. Pure static files, nothing to install, no internet connection needed, LAN multiplayer included, and Play Together from Engage.
 
-Dustline is Engage's edition of [Cla-Go](https://github.com/Kwusv55/Cla-Go) by Kwusv55 (formerly published as Sandstorm). Every texture, sound and model is still made in code.
+Dust is Engage's edition of [Cla-Go](https://github.com/Kwusv55/Cla-Go) by Kwusv55 (formerly published as Sandstorm). Every texture, sound and model is still made in code.
 
-> **Play online**: <https://engage-work.github.io/dustline/>. Click and play, no download.
+> **Play online**: <https://engage-work.github.io/dust/>. Click and play, no download.
 
-## What's new in Dustline
+## What's new in Dust
 
 - **24 weapons**: Glock-18, USP-S, P250, Tec-9, Five-SeveN, Desert Eagle, MAC-10, MP9, UMP-45, Nova, Galil AR, FAMAS, AK-47, M4A4, SG 553, AUG, SSG 08, AWP, two knives, three grenades and the C4, each with its own model, recoil pattern and sound. The AUG and SG 553 have a rifle optic; the Nova fires nine pellets and reloads shell by shell.
 - **Reloads you can see**: the magazine tilts out and falls to the floor (and stays there), the fresh one comes up in the left hand, the bolt or slide is released on an empty gun, snipers cycle the bolt by hand, the Nova is pumped after every shot and loaded one shell at a time. Draw, inspect (with a mag check on rifles) and shell ejection match the action.

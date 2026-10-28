@@ -64,8 +64,8 @@ function $(id) { return document.getElementById(id); }
 // ======================================================================
 //  设置（localStorage 仅作便利，失败不影响运行）
 // ======================================================================
-const SETTINGS_KEY = 'dustline_settings_v1';
-const OLD_SETTINGS_KEY = 'sandstorm_fps_settings_v1';
+const SETTINGS_KEY = 'dust_settings_v1';
+const OLD_SETTINGS_KEYS = ['dustline_settings_v1', 'sandstorm_fps_settings_v1'];
 // Sensitivity uses the classic 0.022° per count, but in a browser a count is a pointer pixel, and most
 // people play with their system's pointer acceleration on: 5 turns about 0.11° per pixel, a full turn
 // in roughly two sweeps of a trackpad. Raw input (no acceleration) stays available for those who want it.
@@ -85,7 +85,7 @@ const Settings = {
   load() {
     try {
       // Settings saved by Sandstorm (this game's earlier name) carry over
-      const s = localStorage.getItem(SETTINGS_KEY) || localStorage.getItem(OLD_SETTINGS_KEY);
+      const s = localStorage.getItem(SETTINGS_KEY) || OLD_SETTINGS_KEYS.map((k) => localStorage.getItem(k)).find(Boolean);
       if (s) Object.assign(this.data, JSON.parse(s));
       // Settings saved before version 2 kept the old defaults (1.6 with raw input), which made aiming
       // crawl; move them to the new ones, keeping any sensitivity someone chose themselves.
