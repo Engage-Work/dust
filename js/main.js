@@ -349,8 +349,9 @@ const Engine = {
     fu.time.value = now / 1000;
     if (g) {
       const live = !this.paused && (Input.locked || Input.uiCursor || this.forceRun);
-      // In multiplayer, pausing only stops local input; the match itself (and sync to others) must keep running
-      if (live || g.net) {
+      // The match keeps running without you: switching to another window (or losing the mouse) only drops
+      // your input, so the round, the bots and a multiplayer match carry on. Esc is the real pause.
+      if (live || g.net || !this.paused) {
         const [mx, my] = Input.takeMouse();
         if (live) g.applyLook(mx, my);
         this.advance(dt, live);
@@ -399,7 +400,7 @@ const Engine = {
       const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
       w.onmessage = () => {
         const g = this.game;
-        if (!g || !g.net || !document.hidden) return;
+        if (!g || !document.hidden || (this.paused && !g.net)) return;
         const now = performance.now();
         let dt = (now - this.last) / 1000; this.last = now;
         if (!(dt > 0)) return; if (dt > 0.1) dt = 0.1;
@@ -444,6 +445,9 @@ const Engine = {
     $('clickToPlay').addEventListener('click', () => { $('clickToPlay').classList.add('hidden'); Sound.resume(); Input.lock(); });
     Input.onUnlock = () => {
       if (!self.game || self.game.over) return;
+      // Lost the mouse by leaving the window (alt-tab, another app): keep playing, just offer the mouse back
+      const escaped = performance.now() - Input.escAt < 400;
+      if (!escaped && (document.hidden || !document.hasFocus())) { $('clickToPlay').classList.remove('hidden'); return; }
       self.pause();
       // Just pressed Ctrl but pointer lock was lost → likely a browser shortcut (Ctrl+W/D etc.) stole focus
       if (performance.now() - Input.lastCtrlT < 400 && !document.fullscreenElement) {
@@ -488,7 +492,7 @@ const Engine = {
       { k: 'moveMode', l: 'Shift key', t: 'select', o: [['walk', 'Walk (Alt does nothing)'], ['sprint', 'Sprint (Alt to walk)']] },
       { k: 'slide', l: 'Sliding', t: 'bool', d: 'Press C/Ctrl while running near full speed to slide' },
       { k: 'toggleCrouch', l: 'Toggle crouch', t: 'bool' },
-      { k: 'kbLock', l: 'Fullscreen + keyboard lock', t: 'bool', d: 'Goes fullscreen at match start and captures browser shortcuts like Ctrl+W / Ctrl+D, so crouching with Ctrl cannot knock you out of pointer lock. Hold Esc to leave fullscreen' },
+      { k: 'kbLock', l: 'Fullscreen + keyboard lock', t: 'bool', d: IN_ENGAGE ? 'Not used inside Engage: the game already has its own tab, and Esc pauses' : 'Goes fullscreen at match start and captures browser shortcuts like Ctrl+W / Ctrl+D, so crouching with Ctrl cannot knock you out of pointer lock. Hold Esc to leave fullscreen' },
       { k: 'knife', l: 'Melee weapon', t: 'select', o: [['butterfly', 'Butterfly knife'], ['knife', 'Default knife']], d: 'Takes effect on next spawn; press F to inspect' },
     ],
     cross: [

@@ -5,6 +5,9 @@
 const VERSION = '2.0.0';
 // `?mute` silences the game for the session (Engage opens it that way while testing); nothing is saved
 const MUTED = /[?&]mute(=|&|$)/.test(location.search);
+// Inside the Engage desktop app the game fills a tab of its own: pointer lock is enough there, and going
+// fullscreen would make Esc leave fullscreen instead of pausing, with the tab's close button out of reach.
+const IN_ENGAGE = /Electron/i.test(navigator.userAgent);
 
 const U = 0.0254;                 // 英寸 → 米（沿用经典 FPS 的英制单位制）
 const DEG = Math.PI / 180;
@@ -140,7 +143,7 @@ const Input = {
       if (this.uiKeyHandler && this.uiKeyHandler(e, true)) { e.preventDefault(); return; }
       if (e.ctrlKey || e.code === 'ControlLeft' || e.code === 'ControlRight') this.lastCtrlT = performance.now();
       if (!this.locked && !this.uiCursor) return;
-      if (e.code === 'Escape' && this.locked) { e.preventDefault(); this.unlock(); return; }
+      if (e.code === 'Escape' && this.locked) { e.preventDefault(); this.escAt = performance.now(); this.unlock(); return; }
       if (GAME_KEYS.has(e.code) || e.ctrlKey || e.altKey || e.metaKey) e.preventDefault();
       if (!e.repeat) { this.down.add(e.code); this.pressed.add(e.code); }
     }, true);
@@ -184,10 +187,11 @@ const Input = {
   },
 
   lastCtrlT: -1e9,
+  escAt: -1e9,
   // 全屏 + Keyboard Lock：浏览器在全屏下才允许网页接管 Ctrl+W / Ctrl+D 等系统快捷键，
   // 否则下蹲(Ctrl)+移动 会触发浏览器快捷键，导致失去指针锁定（表现为“自动按了 Esc”）
   fullscreen() {
-    if (!Settings.data.kbLock) return;
+    if (!Settings.data.kbLock || IN_ENGAGE) return;
     const el = document.documentElement;
     const kb = () => { try { if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock().catch(() => {}); } catch (e) { /* 不支持 */ } };
     if (document.fullscreenElement) { kb(); return; }
